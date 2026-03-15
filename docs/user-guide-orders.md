@@ -21,13 +21,10 @@ func listOrders() {
         log.Fatal(err)
     }
 
-    opts := &order.ListOptions{
-        Page:   1,
-        Limit:  20,
-        Status: order.OrderStatusProcessing, // Filter by status
-    }
-
-    orders, err := sf.Orders().List(context.Background(), opts)
+    orders, err := sf.Orders().List(context.Background(),
+        orderSDK.WithStatus(order.OrderStatusProcessing),
+        orderSDK.WithLimit(20),
+    )
     if err != nil {
         log.Fatal(err)
     }
@@ -96,10 +93,10 @@ func getOrder() {
 Use predefined constants for filtering by status:
 
 ```go
-// Filter orders by specific status
-opts := &order.ListOptions{
-    Status: order.OrderStatusProcessing, // Get processing orders
-}
+// Filter orders by specific status using functional options
+orders, err := sf.Orders().List(context.Background(),
+    orderSDK.WithStatus(order.OrderStatusProcessing), // Get processing orders
+)
 
 availableStatuses := []string{
     order.OrderStatusPending,      // Pending orders - awaiting payment or confirmation
@@ -197,15 +194,12 @@ func manageOrders() {
         log.Fatal(err)
     }
 
-    // Step 1: List all pending orders
+    // Step 1: List all pending orders using functional options
     fmt.Println("=== Pending Orders ===")
-    pendingOpts := &order.ListOptions{
-        Status: order.OrderStatusPending,
-        Limit:  20,
-        Page:   1,
-    }
-
-    pendingOrders, err := sf.Orders().List(context.Background(), pendingOpts)
+    pendingOrders, err := sf.Orders().List(context.Background(),
+        orderSDK.WithStatus(order.OrderStatusPending),
+        orderSDK.WithLimit(20),
+    )
     if err != nil {
         log.Fatal(err)
     }
@@ -218,15 +212,12 @@ func manageOrders() {
             ord.ID)
     }
 
-    // Step 2: List all shipped orders
+    // Step 2: List all shipped orders using functional options
     fmt.Println("\n=== Shipped Orders ===")
-    shippedOpts := &order.ListOptions{
-        Status: order.OrderStatusShipped,
-        Limit:  20,
-        Page:   1,
-    }
-
-    shippedOrders, err := sf.Orders().List(context.Background(), shippedOpts)
+    shippedOrders, err := sf.Orders().List(context.Background(),
+        orderSDK.WithStatus(order.OrderStatusShipped),
+        orderSDK.WithLimit(20),
+    )
     if err != nil {
         log.Fatal(err)
     }
@@ -310,21 +301,17 @@ func handleOrderErrors() {
     }
 
     // Invalid status filter (use constants instead of arbitrary strings)
-    opts := &order.ListOptions{
-        Status: "invalid_status",  // This may cause unexpected behavior
-    }
-    
-    orders, err := sf.Orders().List(context.Background(), opts)
+    _, err := sf.Orders().List(context.Background(),
+        orderSDK.WithStatus("invalid_status"),  // This may cause unexpected behavior
+    )
     if err != nil {
         log.Printf("Filter error: %v", err)
     }
 
-    // Use proper constants
-    validOpts := &order.ListOptions{
-        Status: order.OrderStatusDelivered,  // Always use constants
-    }
-    
-    orders, err = sf.Orders().List(context.Background(), validOpts)
+    // Use proper constants with functional options
+    orders, err = sf.Orders().List(context.Background(),
+        orderSDK.WithStatus(order.OrderStatusDelivered),  // Always use constants
+    )
 }
 ```
 

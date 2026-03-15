@@ -21,12 +21,9 @@ func listCategories() {
         log.Fatal(err)
     }
 
-    opts := &category.ListOptions{
-        Page:  1,   // Pagination page number
-        Limit: 50,  // Items per page
-    }
-
-    categories, err := sf.Categories().List(context.Background(), opts)
+    categories, err := sf.Categories().List(context.Background(),
+        categorySDK.WithLimit(50),
+    )
     if err != nil {
         log.Fatal(err)
     }
@@ -39,10 +36,7 @@ func listCategories() {
 
 **ListOptions Parameters:**
 
-| Parameter | Type | Description | Default |
-|-----------|------|-------------|---------|
-| `Page` | int | Pagination page number | 1 |
-| `Limit` | int | Items per page | 20 |
+Use functional options like `WithLimit()` to set parameters. The category package uses pagination via limit and offset rather than page-based pagination.
 
 #### Get Category Details
 
@@ -113,15 +107,13 @@ func browseCategoryWithProducts() {
     fmt.Printf("Category: %s\n", cat.Name)
     fmt.Printf("Products in this category: %d\n", cat.ProductCount)
 
-    // Then get products filtered by this category
-    opts := &product.ListOptions{
-        Category: cat.ID,
-        Limit:    20,
-        SortBy:   "name",
-        Order:    "asc",
-    }
-
-    products, err := sf.Products().List(context.Background(), opts)
+    // Then get products filtered by this category using functional options
+    products, err := sf.Products().List(context.Background(),
+        product.WithCategory(cat.ID),
+        product.WithLimit(20),
+        product.WithSortBy("name"),
+        product.WithOrder("asc"),
+    )
     if err != nil {
         log.Fatal(err)
     }
@@ -157,13 +149,11 @@ func navigateCategoryHierarchy() {
         }
     }
 
-    // Get products in this subcategory
-    opts := &product.ListOptions{
-        Category: headphonesCat.ID,
-        Limit:    20,
-    }
-    
-    products, err := sf.Products().List(context.Background(), opts)
+    // Get products in this subcategory using functional options
+    products, err := sf.Products().List(context.Background(),
+        product.WithCategory(headphonesCat.ID),
+        product.WithLimit(20),
+    )
     if err != nil {
         log.Fatal(err)
     }
@@ -203,13 +193,10 @@ func completeCategoryWorkflow() {
         log.Fatal(err)
     }
 
-    // List all top-level categories
-    opts := &category.ListOptions{
-        Page:  1,
-        Limit: 50,
-    }
-
-    categories, err := sf.Categories().List(context.Background(), opts)
+    // List all top-level categories using functional options
+    categories, err := sf.Categories().List(context.Background(),
+        categorySDK.WithLimit(50),
+    )
     if err != nil {
         log.Fatal(err)
     }
@@ -224,13 +211,11 @@ func completeCategoryWorkflow() {
             fmt.Printf("  Description: %s\n", *cat.Description)
         }
 
-        // Get first page of products in this category
-        prodOpts := &product.ListOptions{
-            Category: cat.ID,
-            Limit:    5,
-        }
-
-        products, err := sf.Products().List(context.Background(), prodOpts)
+        // Get products in this category using functional options
+        products, err := sf.Products().List(context.Background(),
+            product.WithCategory(cat.ID),
+            product.WithLimit(5),
+        )
         if err != nil {
             log.Printf("Error fetching products for %s: %v", cat.Name, err)
             continue

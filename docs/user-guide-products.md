@@ -21,15 +21,11 @@ func listProducts() {
         log.Fatal(err)
     }
 
-    opts := &product.ListOptions{
-        Page:     1,        // Pagination page number
-        Limit:    20,       // Items per page (default: 20)
-        Category: "cat_electronics",  // Filter by category ID
-        SortBy:   "name",   // Sort field
-        Order:    "asc",    // Sort order: asc or desc
-    }
-
-    products, err := sf.Products().List(context.Background(), opts)
+    products, err := sf.Products().List(context.Background(),
+        product.WithCategory("cat_electronics"),
+        product.WithSortBy("name"),
+        product.WithOrder("asc"),
+    )
     if err != nil {
         log.Fatal(err)
     }
@@ -45,11 +41,13 @@ func listProducts() {
 
 | Parameter | Type | Description | Default |
 |-----------|------|-------------|---------|
-| `Page` | int | Pagination page number | 1 |
-| `Limit` | int | Items per page | 20 |
-| `Category` | string | Filter by category ID | - |
-| `SortBy` | string | Sort field (name, price, created_at) | - |
-| `Order` | string | Sort order: asc or desc | - |
+| `Limit` | uint64 | Maximum items to return (use WithLimit) | unlimited |
+| `Offset` | int64 | Pagination offset (use WithOffset) | 0 |
+| `Category` | string | Filter by category ID (use WithCategory) | - |
+| `SortBy` | string | Sort field (use WithSortBy) | - |
+| `Order` | string | Sort order: asc or desc (use WithOrder) | - |
+
+Use functional options like `WithLimit()`, `WithOffset()`, etc. to set parameters.
 
 #### Get Single Product
 
@@ -84,14 +82,11 @@ func searchProducts() {
         log.Fatal(err)
     }
 
-    opts := &product.SearchOptions{
+    // Note: Search functionality requires SearchOptions which uses functional options
+    products, err := sf.Products().Search(context.Background(), product.SearchQuery{
         Query:      "wireless headphones",
-        Page:       1,
-        Limit:      20,
-        Category:   "cat_electronics", // Optional category filter
-    }
-
-    products, err := sf.Products().Search(context.Background(), *opts)
+        CategoryID: "cat_electronics", // Optional category filter
+    })
     if err != nil {
         log.Fatal(err)
     }
@@ -100,18 +95,18 @@ func searchProducts() {
 }
 ```
 
-**SearchOptions Parameters:**
+**SearchQuery Parameters:**
 
 | Parameter | Type | Description | Required |
 |-----------|------|-------------|----------|
 | `Query` | string | Search query string | Yes |
-| `Page` | int | Pagination page number | No (default: 1) |
-| `Limit` | int | Items per page | No (default: 20) |
-| `Category` | string | Optional category filter | No |
+| `CategoryID` | string | Optional category filter | No |
+
+Note: Pagination parameters are applied via functional options after the search.
 
 #### Find Products by Category
 
-Retrieve all products in a specific category using two methods:
+Retrieve all products in a specific category using List with WithCategory:
 
 ```go
 func getCategoryProducts() {
@@ -120,19 +115,15 @@ func getCategoryProducts() {
         log.Fatal(err)
     }
 
-    // Method 1: Using FindByCategory helper method
-    products, err := sf.Products().FindByCategory(context.Background(), "cat_electronics")
+    // Use functional options to filter by category and set limit
+    products, err := sf.Products().List(context.Background(),
+        product.WithCategory("cat_electronics"),
+        product.WithLimit(50),
+    )
     if err != nil {
         log.Fatal(err)
     }
     fmt.Printf("Found %d electronics products\n", len(products))
-
-    // Method 2: Using List with Category filter
-    opts := &product.ListOptions{
-        Category: "cat_electronics",
-        Limit:    50,
-    }
-    products, err = sf.Products().List(context.Background(), opts)
 }
 ```
 
@@ -206,14 +197,11 @@ func listProductsWithTimeout() {
     ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
     defer cancel()
 
-    opts := &product.ListOptions{
-        Page:   1,
-        Limit:  20,
-        SortBy: "created_at",
-        Order:  "desc",
-    }
-
-    products, err := sf.Products().List(ctx, opts)
+    products, err := sf.Products().List(ctx,
+        product.WithLimit(20),
+        product.WithSortBy("created_at"),
+        product.WithOrder("desc"),
+    )
     if ctx.Err() == context.DeadlineExceeded {
         log.Fatal("Request timed out")
     }

@@ -31,8 +31,9 @@ type Category struct {
 
 // ListOptions contains parameters for listing products.
 type ListOptions struct {
-	Offset   int64  `json:"offset,omitempty"`
-	Category string `json:"category_id,omitempty"`
-	SortBy   string `json:"sort_by,omitempty"`
-	Order    string `json:"order,omitempty"`
+	Limit    *uint64 `json:"limit,omitempty"`
+	Offset   int64   `json:"offset,omitempty"`
+	Category string  `json:"category_id,omitempty"`
+	SortBy   string  `json:"sort_by,omitempty"`
+	Order    string  `json:"order,omitempty"`
 }

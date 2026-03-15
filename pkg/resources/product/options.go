@@ -30,3 +30,13 @@ func WithOrder(order string) ListOption {
 		o.Order = order
 	}
 }
+
+// WithLimit sets the maximum number of products to return
+func WithLimit(limit uint64) ListOption {
+	if limit == 0 {
+		limit = 1 // enforce minimum value
+	}
+	return func(o *ListOptions) {
+		o.Limit = &limit
+	}
+}

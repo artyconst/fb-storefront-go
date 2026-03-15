@@ -55,7 +55,7 @@ func main() {
         log.Fatal(err)
     }
 
-    products, err := sf.Products().List(context.Background(), &product.ListOptions{Limit: 20})
+    products, err := sf.Products().List(context.Background(), product.WithLimit(20))
     if err != nil {
         log.Fatal(err)
     }

@@ -75,22 +75,26 @@ func main() {
 
 	fmt.Println("\n4. Testing Product Operations with functional options")
 	products, err := productService.List(context.Background(),
+		productSDK.WithLimit(20),
 		productSDK.WithOffset(0),
 	)
 	if err != nil {
 		fmt.Printf("   Note: List products failed: %v\n", err)
 	} else {
-		fmt.Printf("   Found %d products\n", len(products))
+		fmt.Printf("   Found %d products (limit 20)\n", len(products))
 		for _, prod := range products[:min(len(products), 3)] {
 			fmt.Printf("     Product ID: %s, Name: %s, Price: $%d\n", prod.ID, prod.Name, prod.Price)
 		}
 	}
 
 	if len(categories) > 0 {
-		fmt.Println("\n5. Testing Find Products by Category (uses functional options internally)")
-		catProducts, err := productService.FindByCategory(context.Background(), categories[0].ID)
+		fmt.Println("\n5. Testing List Products by Category (using functional options)")
+		catProducts, err := productService.List(context.Background(),
+			productSDK.WithCategory(categories[0].ID),
+			productSDK.WithLimit(10),
+		)
 		if err != nil {
-			fmt.Printf("   Note: Find products by category failed: %v\n", err)
+			fmt.Printf("   Note: List products by category failed: %v\n", err)
 		} else {
 			fmt.Printf("     Found %d products in category %s\n", len(catProducts), categories[0].Name)
 		}

@@ -144,7 +144,7 @@ func TestProductService_Get(t *testing.T) {
 	})
 }
 
-func TestProductService_FindByCategory(t *testing.T) {
+func TestProductService_ListWithOptions(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode([]*Product{
@@ -156,8 +156,8 @@ func TestProductService_FindByCategory(t *testing.T) {
 	client := setupTestClient(t, handler)
 	service := NewProductService(client)
 
-	t.Run("success find by category", func(t *testing.T) {
-		products, err := service.FindByCategory(context.Background(), "cat_123")
+	t.Run("success with limit", func(t *testing.T) {
+		products, err := service.List(context.Background(), WithLimit(10))
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -166,13 +166,13 @@ func TestProductService_FindByCategory(t *testing.T) {
 		}
 	})
 
-	t.Run("fails with empty category id", func(t *testing.T) {
-		products, err := service.FindByCategory(context.Background(), "")
-		if err == nil {
-			t.Fatal("Expected error for empty category ID")
+	t.Run("success with category filter", func(t *testing.T) {
+		products, err := service.List(context.Background(), WithCategory("cat_123"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
 		}
-		if products != nil {
-			t.Error("Expected nil products on error")
+		if len(products) != 2 {
+			t.Errorf("Expected 2 products, got %d", len(products))
 		}
 	})
 
@@ -184,7 +184,7 @@ func TestProductService_FindByCategory(t *testing.T) {
 		client := setupTestClient(t, handler)
 		service := NewProductService(client)
 
-		products, err := service.FindByCategory(context.Background(), "cat_123")
+		products, err := service.List(context.Background(), WithLimit(10))
 		if err == nil {
 			t.Fatal("Expected error for server failure")
 		}
@@ -193,14 +193,13 @@ func TestProductService_FindByCategory(t *testing.T) {
 		}
 	})
 
-	t.Run("fails with empty category id pointer", func(t *testing.T) {
-		var catID string
-		products, err := service.FindByCategory(context.Background(), catID)
-		if err == nil {
-			t.Fatal("Expected error for empty category ID")
+	t.Run("limit with zero value defaults to 1", func(t *testing.T) {
+		products, err := service.List(context.Background(), WithLimit(0))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
 		}
-		if products != nil {
-			t.Error("Expected nil products on error")
+		if len(products) != 2 {
+			t.Errorf("Expected 2 products, got %d", len(products))
 		}
 	})
 }

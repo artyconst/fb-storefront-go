@@ -26,6 +26,9 @@ func (s *ProductService) List(ctx context.Context, opts ...ListOption) ([]*Produ
 	}
 
 	params := url.Values{}
+	if options.Limit != nil {
+		params.Set("limit", fmt.Sprintf("%d", *options.Limit))
+	}
 	if options.Offset > 0 {
 		params.Set("offset", fmt.Sprintf("%d", options.Offset))
 	}
@@ -64,13 +67,4 @@ func (s *ProductService) Get(ctx context.Context, id string) (*Product, error) {
 		return nil, err
 	}
 	return &product, nil
-}
-
-// FindByCategory retrieves products in a specific category.
-func (s *ProductService) FindByCategory(ctx context.Context, categoryID string) ([]*Product, error) {
-	if categoryID == "" {
-		return nil, fmt.Errorf("category ID cannot be empty")
-	}
-
-	return s.List(ctx, WithCategory(categoryID))
 }
