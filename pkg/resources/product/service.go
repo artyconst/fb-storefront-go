@@ -33,7 +33,7 @@ func (s *ProductService) List(ctx context.Context, opts ...ListOption) ([]*Produ
 		params.Set("offset", fmt.Sprintf("%d", options.Offset))
 	}
 	if options.Category != "" {
-		params.Set("category_id", options.Category)
+		params.Set("category", options.Category)
 	}
 	if options.SortBy != "" {
 		params.Set("sort_by", options.SortBy)

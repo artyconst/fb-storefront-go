@@ -75,13 +75,13 @@ func main() {
 
 	fmt.Println("\n4. Testing Product Operations with functional options")
 	products, err := productService.List(context.Background(),
-		productSDK.WithLimit(20),
+		productSDK.WithLimit(100),
 		productSDK.WithOffset(0),
 	)
 	if err != nil {
 		fmt.Printf("   Note: List products failed: %v\n", err)
 	} else {
-		fmt.Printf("   Found %d products (limit 20)\n", len(products))
+		fmt.Printf("   Found %d products (limit 100)\n", len(products))
 		for _, prod := range products[:min(len(products), 3)] {
 			fmt.Printf("     Product ID: %s, Name: %s, Price: $%d\n", prod.ID, prod.Name, prod.Price)
 		}
