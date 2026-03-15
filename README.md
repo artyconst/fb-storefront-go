@@ -129,6 +129,10 @@ if err != nil {
 }
 ```
 
+## For Agents
+
+When implementing features with this SDK, consult the comprehensive [SDK Usage Guide](./docs/skills/sdk-usage-guide/SKILL.md) for initialization patterns, service methods reference, and best practices.
+
 ## Testing
 
 Tests use mocked API responses and require no environment setup:
