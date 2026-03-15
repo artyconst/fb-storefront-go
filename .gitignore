@@ -1,0 +1,35 @@
+# Go build artifacts and binaries
+*.exe
+*.dll
+*.dylib
+*.out
+/bin/
+/main
+/go.sum.bak
+.opencode/
+# IDE and editor files
+.idea/
+.vscode/
+.opencode/
+.claudcode/
+.qwen/
+.ti/
+.zed/
+
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Coverage reports
+coverage.out
+profile.out
+
+# Environment configuration (do not commit actual credentials)
+AGENTS.md
+PRACTICES.md
+.env
+examples/.env
