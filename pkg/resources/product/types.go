@@ -17,7 +17,7 @@ type Product struct {
 	IsAvailable     bool            `json:"is_available"`
 	Tags            []string        `json:"tags"`
 	Status          string          `json:"status"`
-	Meta            map[string]any  `json:"meta"`
+	Meta            interface{}     `json:"meta"`
 	Slug            string          `json:"slug"`
 	Translations    []Translation   `json:"translations"`
 	AddonCategories []AddonCategory `json:"addon_categories"`
