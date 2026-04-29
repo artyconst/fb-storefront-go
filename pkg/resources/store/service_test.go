@@ -104,7 +104,7 @@ func TestStoreService_About_Error(t *testing.T) {
 
 	client, err := sf.NewStorefront("sk_test_key", sf.WithAPIHost(server.URL))
 	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
+		t.Fatalf("Failed to create test client: %v", err)
 	}
 
 	service := NewStoreService(client)

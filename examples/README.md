@@ -6,7 +6,7 @@ This directory contains example applications demonstrating how to use the Fleetb
 
 ### 1. Copy Environment Variables
 
-Copy the `.env.example` file to `.env` and fill in your actual credentials:
+Copy the `.env.example` file to `.env` in this directory and fill in your actual credentials:
 
 ```bash
 cp .env.example .env

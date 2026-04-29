@@ -22,21 +22,39 @@ func listCategories() {
     }
 
     categories, err := sf.Categories().List(context.Background(),
-        categorySDK.WithLimit(50),
+        category.WithLimit(50),
     )
     if err != nil {
         log.Fatal(err)
     }
 
     for _, cat := range categories {
-        fmt.Printf("%s (%d products)\n", cat.Name, cat.ProductCount)
+        fmt.Printf("%s\n", cat.Name)
     }
 }
 ```
 
 **ListOptions Parameters:**
 
-Use functional options like `WithLimit()` to set parameters. The category package uses pagination via limit and offset rather than page-based pagination.
+The category package uses functional options for all list parameters. Pagination uses limit and offset rather than page-based pagination.
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `WithLimit(limit int64)` | `int64` | Maximum number of categories to return |
+| `WithOffset(offset int64)` | `int64` | Offset for pagination (skip N categories) |
+| `WithSearch(search string)` | `string` | Search categories by name or description |
+| `WithParentID(parentID string)` | `string` | Filter categories by parent ID (for nested categories) |
+
+**Example with all options:**
+
+```go
+categories, err := sf.Categories().List(context.Background(),
+    category.WithLimit(50),
+    category.WithOffset(0),
+    category.WithSearch("electronics"),
+    category.WithParentID("cat_electronics"),
+)
+```
 
 #### Get Category Details
 
@@ -55,11 +73,11 @@ func getCategory() {
     }
 
     fmt.Printf("%s - %s\n", cat.Name, cat.Slug)
-    fmt.Printf("Description: %s\n", *cat.Description)
-    fmt.Printf("Products: %d\n", cat.ProductCount)
-    
-    if cat.ParentID != nil {
-        fmt.Printf("Parent Category ID: %s\n", *cat.ParentID)
+    if cat.Description != nil {
+        fmt.Printf("Description: %s\n", *cat.Description)
+    }
+    if cat.IconURL != "" {
+        fmt.Printf("Icon URL: %s\n", cat.IconURL)
     }
 }
 ```
@@ -70,13 +88,17 @@ The `Category` type contains the following fields:
 
 ```go
 type Category struct {
-    ID           string   // Unique category identifier (e.g., "cat_electronics")
-    Name         string   // Category display name
-    Slug         string   // URL-friendly slug for routing
-    Description  *string  // Optional detailed description
-    ParentID     *string  // Parent category ID for hierarchical structures
-    ImageURL     *string  // Category banner/product image CDN URL
-    ProductCount int      // Number of products in this category
+    ID           string                 // Unique category identifier (e.g., "cat_electronics")
+    Name         string                 // Category display name
+    Description  *string                // Optional detailed description (nil-safe: check before dereferencing)
+    IconURL      string                 // Category icon image CDN URL
+    Tags         []string               // Category tags
+    Translations []interface{}          // Translations
+    Meta         map[string]interface{} // Metadata
+    Order        *int64                 // Optional display order
+    Slug         string                 // URL-friendly slug for routing
+    CreatedAt    time.Time              // Creation timestamp
+    UpdatedAt    *time.Time             // Last update timestamp (nil-safe: check before use)
 }
 ```
 
@@ -84,8 +106,10 @@ type Category struct {
 
 - **ID**: Used to reference the category in API calls and product filtering
 - **Slug**: SEO-friendly identifier used in URLs (e.g., `/categories/electronics`)
-- **ParentID**: Enables nested category hierarchies (e.g., Electronics → Audio → Headphones)
-- **ProductCount**: Cached count of products in this category for efficient display
+- **IconURL**: Direct string value (not a pointer). Use `if cat.IconURL != ""` to check for presence.
+- **Description**: Pointer to string. Always nil-check before dereferencing: `if cat.Description != nil { fmt.Println(*cat.Description) }`
+- **Order**: Optional pointer to int64. Nil-check before use.
+- **UpdatedAt**: Optional pointer to time.Time. Nil-check before use.
 
 #### Using Categories with Products
 
@@ -105,7 +129,6 @@ func browseCategoryWithProducts() {
     }
 
     fmt.Printf("Category: %s\n", cat.Name)
-    fmt.Printf("Products in this category: %d\n", cat.ProductCount)
 
     // Then get products filtered by this category using functional options
     products, err := sf.Products().List(context.Background(),
@@ -141,11 +164,14 @@ func navigateCategoryHierarchy() {
 
     fmt.Printf("Category: %s\n", headphonesCat.Name)
 
-    // Check if it has a parent
-    if headphonesCat.ParentID != nil {
-        parentCat, err := sf.Categories().Get(context.Background(), *headphonesCat.ParentID)
-        if err == nil {
-            fmt.Printf("Parent Category: %s\n", parentCat.Name)
+    // Use WithParentID to find parent categories
+    // (The Category struct does not include a ParentID field)
+    parentCategories, err := sf.Categories().List(context.Background(),
+        category.WithParentID("cat_electronics"),
+    )
+    if err == nil {
+        for _, pc := range parentCategories {
+            fmt.Printf("Parent: %s\n", pc.Name)
         }
     }
 
@@ -195,7 +221,7 @@ func completeCategoryWorkflow() {
 
     // List all top-level categories using functional options
     categories, err := sf.Categories().List(context.Background(),
-        categorySDK.WithLimit(50),
+        category.WithLimit(50),
     )
     if err != nil {
         log.Fatal(err)
@@ -205,10 +231,13 @@ func completeCategoryWorkflow() {
 
     // Get details for each category and its products
     for _, cat := range categories {
-        fmt.Printf("\n%s (%d products)\n", cat.Name, cat.ProductCount)
+        fmt.Printf("\n%s\n", cat.Name)
         
         if cat.Description != nil {
             fmt.Printf("  Description: %s\n", *cat.Description)
+        }
+        if cat.IconURL != "" {
+            fmt.Printf("  Icon URL: %s\n", cat.IconURL)
         }
 
         // Get products in this category using functional options

@@ -13,6 +13,7 @@ import (
 	cartSDK "github.com/artyconst/fb-storefront-go/pkg/resources/cart"
 	categorySDK "github.com/artyconst/fb-storefront-go/pkg/resources/category"
 	checkoutSDK "github.com/artyconst/fb-storefront-go/pkg/resources/checkout"
+	locationSDK "github.com/artyconst/fb-storefront-go/pkg/resources/location"
 	orderSDK "github.com/artyconst/fb-storefront-go/pkg/resources/order"
 	productSDK "github.com/artyconst/fb-storefront-go/pkg/resources/product"
 	storeSDK "github.com/artyconst/fb-storefront-go/pkg/resources/store"
@@ -44,6 +45,7 @@ func main() {
 	}
 
 	storeService := storeSDK.NewStoreService(client)
+	locService := locationSDK.NewService(client)
 	cartService := cartSDK.NewCartService(client)
 	categoryService := categorySDK.NewCategoryService(client)
 	productService := productSDK.NewProductService(client)
@@ -118,6 +120,22 @@ func main() {
 			} else {
 				fmt.Printf("   Gateway: %s (%s)\n", gateway.Name, gateway.Type)
 				fmt.Printf("   Active: %v\n", gateway.IsActive)
+			}
+		}
+	}
+
+	fmt.Println("\n7.5 Testing Store Locations")
+	fmt.Println("   Note: Locations are fetched via the standalone location service")
+
+	locations, err := locService.List(context.Background(), about.ID)
+	if err != nil {
+		fmt.Printf("   Note: List locations failed: %v\n", err)
+	} else {
+		fmt.Printf("   Found %d store locations\n", len(locations))
+		for _, loc := range locations[:min(len(locations), 3)] {
+			fmt.Printf("     Location ID: %s, Name: %s\n", loc.ID, loc.Name)
+			if loc.Place != nil {
+				fmt.Printf("       Address: %s\n", loc.Place.Address)
 			}
 		}
 	}

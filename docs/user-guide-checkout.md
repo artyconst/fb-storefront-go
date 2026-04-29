@@ -42,7 +42,7 @@ func createCheckout() {
 
     fmt.Printf("Checkout ID: %s\n", checkout.ID)
     fmt.Printf("Status: %s\n", checkout.Status)
-    fmt.Printf("Amount: $%s\n", checkout.Amount.String())
+    fmt.Printf("Amount: $%d\n", checkout.Amount)
 }
 ```
 
@@ -50,9 +50,10 @@ func createCheckout() {
 
 | Parameter | Type | Description | Required |
 |-----------|------|-------------|----------|
-| `CustomerEmail` | string | Customer email address for the order | Yes |
-| `ShippingAddress` | *Address | Complete shipping address details | Yes |
-| `PaymentMethodID` | string | Payment method token from payment processor | Yes (for immediate processing) |
+| `CustomerEmail` | string | Customer email address for the order | No |
+| `ShippingAddress` | *Address | Complete shipping address details | No |
+| `BillingAddress` | *Address | Optional billing address (defaults to shipping if omitted) | No |
+| `PaymentMethodID` | string | Payment method token from payment processor | No (for immediate processing) |
 
 **Create Parameters:**
 
@@ -78,10 +79,10 @@ func getCheckout() {
     }
 
     fmt.Printf("Status: %s\n", checkout.Status)
-    fmt.Printf("Amount: $%s\n", checkout.Amount.String())
+    fmt.Printf("Amount: $%d\n", checkout.Amount)
     
-    if checkout.Customer != nil && checkout.Customer.Email != nil {
-        fmt.Printf("Customer Email: %s\n", *checkout.Customer.Email)
+    if checkout.Customer != nil {
+        fmt.Printf("Customer Email: %s\n", checkout.Customer.Email)
     }
 
     if checkout.ShippingAddress != nil {
@@ -113,7 +114,7 @@ func updateCheckoutCustomer() {
         log.Fatal(err)
     }
 
-    fmt.Printf("Updated customer email: %s\n", *checkout.Customer.Email)
+    fmt.Printf("Updated customer email: %s\n", checkout.Customer.Email)
 }
 ```
 
@@ -147,7 +148,7 @@ func processPayment() {
     }
 
     fmt.Printf("Payment processed. Status: %s\n", checkout.Status)
-    fmt.Printf("Amount charged: $%s\n", checkout.Amount.String())
+    fmt.Printf("Amount charged: $%d\n", checkout.Amount)
 }
 ```
 
@@ -165,34 +166,37 @@ The `Checkout` type represents a checkout session:
 
 ```go
 type Checkout struct {
-    ID                string      // Unique checkout identifier (e.g., "checkout_xyz789")
-    Status            CheckoutStatus  // Current status of the checkout process
-    Amount            Decimal     // Total amount to be charged
-    Currency          string      // Currency code (e.g., "USD")
-    Customer          *CustomerInfo  // Customer information for this order
-    ShippingAddress   *Address    // Complete shipping address details
-    BillingAddress    *Address    // Optional billing address (defaults to shipping)
-    PaymentMethodID   *string     // Payment method being used
-    CreatedAt         time.Time   // When checkout was created
-    UpdatedAt         time.Time   // Last update timestamp
+    ID              string         `json:"id"`
+    CartID          string         `json:"cart_id"`
+    Status          CheckoutStatus `json:"status"`
+    Customer        *CustomerInfo  `json:"customer,omitempty"`
+    ShippingAddress *Address       `json:"shipping_address,omitempty"`
+    BillingAddress  *Address       `json:"billing_address,omitempty"`
+    PaymentMethod   *PaymentMethod `json:"payment_method,omitempty"`
+    Amount          int64          `json:"amount"`
+    TaxAmount       *int64         `json:"tax_amount,omitempty"`
+    Currency        string         `json:"currency"`
+    CreatedAt       string         `json:"created_at"`
+    UpdatedAt       string         `json:"updated_at"`
 }
 
 type CustomerInfo struct {
-    Email   *string `json:"email,omitempty"`   // Customer email address
-    Phone   *string `json:"phone,omitempty"`   // Customer phone number
+    ID    string `json:"id,omitempty"`
+    Email string `json:"email,omitempty"`
+    Phone string `json:"phone,omitempty"`
 }
 
 type Address struct {
-    FirstName     string `json:"first_name"`      // Recipient first name
-    LastName      string `json:"last_name"`       // Recipient last name
-    Company       string `json:"company,omitempty"`  // Company name (optional)
-    AddressLine1  string `json:"address_line_1"`  // Street address line 1
-    AddressLine2  string `json:"address_line_2,omitempty"` // Apt, suite, unit (optional)
-    City          string `json:"city"`            // City or locality
-    State         string `json:"state"`           // State or province
-    PostalCode    string `json:"postal_code"`     // ZIP or postal code
-    Country       string `json:"country"`         // ISO 3166-1 alpha-2 country code (e.g., "US")
-    Phone         string `json:"phone,omitempty"` // Contact phone number (optional)
+    FirstName    string `json:"first_name"`
+    LastName     string `json:"last_name"`
+    Company      string `json:"company,omitempty"`
+    AddressLine1 string `json:"address_line_1"`
+    AddressLine2 string `json:"address_line_2,omitempty"`
+    City         string `json:"city"`
+    State        string `json:"state,omitempty"`
+    PostalCode   string `json:"postal_code"`
+    Country      string `json:"country"`
+    Phone        string `json:"phone,omitempty"`
 }
 
 type CheckoutStatus string
@@ -226,8 +230,8 @@ func completeCheckoutFlow() {
         log.Fatal("Cannot checkout empty cart")
     }
 
-    fmt.Printf("Cart has %d items, total: $%s\n", 
-        len(cart.Items), cart.TotalAmount.String())
+    fmt.Printf("Cart has %d items, total: $%d\n", 
+        len(cart.Items), cart.TotalAmount)
 
     // Step 2: Create checkout session with customer and shipping details
     checkoutReq := &checkout.CreateCheckoutRequest{
@@ -263,7 +267,7 @@ func completeCheckoutFlow() {
         log.Fatal(err)
     }
 
-    fmt.Printf("Updated customer phone to: %s\n", *checkout.Customer.Phone)
+    fmt.Printf("Updated customer phone to: %s\n", checkout.Customer.Phone)
 
     // Step 4: Process payment
     paymentReq := &checkout.PaymentRequest{
@@ -279,7 +283,7 @@ func completeCheckoutFlow() {
 
     fmt.Printf("Payment processed successfully!\n")
     fmt.Printf("Status: %s\n", checkout.Status)
-    fmt.Printf("Amount charged: $%s\n", checkout.Amount.String())
+    fmt.Printf("Amount charged: $%d\n", checkout.Amount)
 }
 ```
 

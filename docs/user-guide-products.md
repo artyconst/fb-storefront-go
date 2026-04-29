@@ -32,7 +32,7 @@ func listProducts() {
 
     fmt.Printf("Found %d products\n", len(products))
     for _, p := range products {
-        fmt.Printf("%s - $%s\n", p.Name, p.Price.String())
+        fmt.Printf("%s - $%d\n", p.Name, p.Price)
     }
 }
 ```
@@ -65,15 +65,14 @@ func getProduct() {
         log.Fatal(err)
     }
 
-    fmt.Printf("%s - $%s\n", prod.Name, prod.Price.String())
+    fmt.Printf("%s - $%d\n", prod.Name, prod.Price)
     fmt.Printf("SKU: %s\n", prod.SKU)
-    fmt.Printf("Stock: %d\n", prod.StockQuantity)
 }
 ```
 
 #### Search Products
 
-Search for products by query string with optional category filtering:
+Search for products by query string:
 
 ```go
 func searchProducts() {
@@ -82,10 +81,11 @@ func searchProducts() {
         log.Fatal(err)
     }
 
-    // Note: Search functionality requires SearchOptions which uses functional options
     products, err := sf.Products().Search(context.Background(), product.SearchQuery{
-        Query:      "wireless headphones",
-        CategoryID: "cat_electronics", // Optional category filter
+        Query:  "wireless headphones",
+        Limit:  20,
+        Offset: 0,
+        Store:  "store_default",
     })
     if err != nil {
         log.Fatal(err)
@@ -100,9 +100,9 @@ func searchProducts() {
 | Parameter | Type | Description | Required |
 |-----------|------|-------------|----------|
 | `Query` | string | Search query string | Yes |
-| `CategoryID` | string | Optional category filter | No |
-
-Note: Pagination parameters are applied via functional options after the search.
+| `Limit` | int64 | Maximum items to return | No |
+| `Offset` | int64 | Pagination offset | No |
+| `Store` | string | Store identifier | No |
 
 #### Find Products by Category
 
@@ -133,35 +133,32 @@ The `Product` type contains the following fields:
 
 ```go
 type Product struct {
-    ID             string     // Unique product identifier (e.g., "prod_abc123")
-    Name           string     // Product name
-    Description    *string    // Optional description
-    Price          Decimal    // Current price as decimal string
-    CompareAtPrice *Decimal   // Original/comparison price for discounts
-    SKU            string     // Stock keeping unit identifier
-    StockQuantity  int        // Available quantity in stock
-    Images         []Image    // Product images array
-    Categories     []Category // Associated categories
-}
-
-type Image struct {
-    ID       string `json:"id"`       // Unique image identifier
-    URL      string `json:"url"`      // Image CDN URL
-    AltText  string `json:"alt_text,omitempty"` // Optional alt text for accessibility
-    Position int    `json:"position"` // Display order position
-}
-
-type Category struct {
-    ID   string `json:"id"`   // Category identifier
-    Name string `json:"name"` // Category name
+    ID              string                 `json:"id"`
+    Name            string                 `json:"name"`
+    Description     *string                `json:"description,omitempty"`
+    Price           int64                  `json:"price"`
+    SalePrice       *int64                 `json:"sale_price,omitempty"`
+    Currency        string                 `json:"currency,omitempty"`
+    SKU             *string                `json:"sku,omitempty"`
+    PrimaryImageURL string                 `json:"primary_image_url,omitempty"`
+    Tags            []string               `json:"tags,omitempty"`
+    Status          string                 `json:"status,omitempty"`
+    Meta            map[string]interface{} `json:"meta,omitempty"`
+    Slug            string                 `json:"slug,omitempty"`
+    IsOnSale        bool                   `json:"is_on_sale,omitempty"`
+    IsService       bool                   `json:"is_service,omitempty"`
+    IsBookable      bool                   `json:"is_bookable,omitempty"`
+    IsAvailable     bool                   `json:"is_available,omitempty"`
+    CreatedAt       string                 `json:"created_at"`
+    UpdatedAt       string                 `json:"updated_at"`
 }
 ```
 
 **Important Notes:**
 
-- **Price Handling**: Use the `Decimal` type (string alias) for all currency values to maintain precision and avoid floating-point errors. Always use `.String()` when displaying prices.
-- **Optional Fields**: Pointer types (`*string`, `*Decimal`) indicate optional fields that may be nil.
-- **Images Array**: Products can have multiple images with positions determining display order.
+- **Monetary Values**: All currency fields (`Price`, `SalePrice`) use `int64` to represent the price in the smallest currency unit (e.g., cents). Use `%d` format verb when displaying prices.
+- **Optional Fields**: Pointer types (`*string`, `*int64`) indicate optional fields that may be nil.
+- **Timestamps**: `CreatedAt` and `UpdatedAt` are ISO 8601 date strings, not `time.Time` objects.
 
 #### Error Handling
 

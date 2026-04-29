@@ -22,17 +22,17 @@ func listOrders() {
     }
 
     orders, err := sf.Orders().List(context.Background(),
-        orderSDK.WithStatus(order.OrderStatusProcessing),
-        orderSDK.WithLimit(20),
+        order.WithStatus(order.OrderStatusProcessing),
+        order.WithLimit(20),
     )
     if err != nil {
         log.Fatal(err)
     }
 
     for _, ord := range orders {
-        fmt.Printf("#%s - $%s - %s\n", 
+        fmt.Printf("#%s - %d - %s\n", 
             ord.OrderNumber, 
-            ord.TotalAmount.String(), 
+            ord.TotalAmount,
             ord.Status)
     }
 }
@@ -63,19 +63,17 @@ func getOrder() {
     }
 
     fmt.Printf("Order #%s - %s\n", ord.OrderNumber, ord.Status)
-    fmt.Printf("Total Amount: $%s\n", ord.TotalAmount.String())
+    fmt.Printf("Total Amount: %d\n", ord.TotalAmount)
     fmt.Printf("Items: %d\n", len(ord.Items))
 
     for _, item := range ord.Items {
-        fmt.Printf("- %s x%d: $%s\n", 
+        fmt.Printf("- %s x%d: %d\n", 
             item.Name, 
             item.Quantity, 
-            item.Price.String())
+            item.Price)
     }
 
-    if ord.Customer != nil && ord.Customer.Email != nil {
-        fmt.Printf("Customer Email: %s\n", *ord.Customer.Email)
-    }
+    fmt.Printf("Customer Email: %s\n", ord.CustomerEmail)
 
     if ord.ShippingAddress != nil {
         addr := ord.ShippingAddress
@@ -95,7 +93,7 @@ Use predefined constants for filtering by status:
 ```go
 // Filter orders by specific status using functional options
 orders, err := sf.Orders().List(context.Background(),
-    orderSDK.WithStatus(order.OrderStatusProcessing), // Get processing orders
+    order.WithStatus(order.OrderStatusProcessing), // Get processing orders
 )
 
 availableStatuses := []string{
@@ -136,50 +134,47 @@ The `Order` type contains the following fields:
 
 ```go
 type Order struct {
-    ID             string      // Unique order identifier (e.g., "ord_abc123")
-    OrderNumber    string      // Human-readable order number (e.g., "ORD-001234")
-    Status         string      // Current order status (pending, confirmed, processing, shipped, delivered, cancelled, refunded)
-    Customer       *OrderCustomer  // Customer information for this order
-    Items          []*OrderItem   // Array of ordered items
-    Subtotal       Decimal     // Subtotal before tax and discounts
-    TaxAmount      *Decimal    // Calculated tax amount
-    ShippingCost   *Decimal    // Shipping cost if applicable
-    Discount       *Decimal    // Applied discount amount
-    TotalAmount    Decimal     // Final total amount charged
-    Currency       string      // Currency code (e.g., "USD")
-    ShippingAddress  *Address   // Complete shipping address
-    BillingAddress   *Address    // Billing address (may differ from shipping)
-    PaymentMethodID  *string    // Payment method used for this order
-    CreatedAt      time.Time   // When order was created
-    UpdatedAt      time.Time   // Last update timestamp
-}
-
-type OrderCustomer struct {
-    ID        *string `json:"id,omitempty"`     // Customer account ID (nil for guest checkout)
-    Email     *string `json:"email,omitempty"`  // Customer email address
-    Phone     *string `json:"phone,omitempty"`  // Customer phone number
+    ID              string       // Unique order identifier (e.g., "ord_abc123")
+    OrderNumber     string       // Human-readable order number (e.g., "ORD-001234")
+    Status          OrderStatus  // Current order status (pending, confirmed, processing, shipped, delivered, cancelled, refunded)
+    CustomerID      string       // Customer account ID
+    CustomerEmail   string       // Customer email address
+    Items           []*OrderItem // Array of ordered items
+    Subtotal        int64        // Subtotal before tax and discounts (in smallest currency unit)
+    TaxAmount       int64        // Calculated tax amount (in smallest currency unit)
+    ShippingCost    int64        // Shipping cost (in smallest currency unit)
+    Discount        *int64       // Applied discount amount (in smallest currency unit, nil if no discount)
+    TotalAmount     int64        // Final total amount charged (in smallest currency unit)
+    Currency        string       // Currency code (e.g., "USD")
+    BillingAddress  *Address     // Billing address (may differ from shipping)
+    ShippingAddress *Address     // Complete shipping address
+    PaymentStatus   string       // Payment status (e.g., "pending", "paid", "failed")
+    Notes           *string      // Order notes (nil if no notes)
+    CreatedAt       string       // When order was created (ISO 8601 string)
+    UpdatedAt       string       // Last update timestamp (ISO 8601 string)
 }
 
 type OrderItem struct {
-    ID        string  // Unique order item identifier
-    ProductID string  // Related product identifier
-    Name      string  // Product name (snapshot at time of order)
-    Quantity  int     // Ordered quantity
-    Price     Decimal // Unit price at time of purchase
-    Total     Decimal // Line total (quantity × unit price)
+    ID        string // Unique order item identifier
+    ProductID string // Related product identifier
+    Name      string // Product name (snapshot at time of order)
+    SKU       string // Product SKU
+    Quantity  int    // Ordered quantity
+    Price     int64  // Unit price at time of purchase (in smallest currency unit)
+    Total     int64  // Line total (quantity × unit price)
 }
 
 type Address struct {
-    FirstName     string `json:"first_name"`      // Recipient first name
-    LastName      string `json:"last_name"`       // Recipient last name
-    Company       string `json:"company,omitempty"`  // Company name (optional)
-    AddressLine1  string `json:"address_line_1"`  // Street address line 1
-    AddressLine2  string `json:"address_line_2,omitempty"` // Apt, suite, unit (optional)
-    City          string `json:"city"`            // City or locality
-    State         string `json:"state"`           // State or province
-    PostalCode    string `json:"postal_code"`     // ZIP or postal code
-    Country       string `json:"country"`         // ISO 3166-1 alpha-2 country code (e.g., "US")
-    Phone         string `json:"phone,omitempty"` // Contact phone number (optional)
+    FirstName    string `json:"first_name"`     // Recipient first name
+    LastName     string `json:"last_name"`      // Recipient last name
+    Company      string `json:"company,omitempty"`       // Company name (optional)
+    AddressLine1 string `json:"address_line_1"`  // Street address line 1
+    AddressLine2 string `json:"address_line_2,omitempty"` // Apt, suite, unit (optional)
+    City         string `json:"city"`            // City or locality
+    State        string `json:"state,omitempty"`         // State or province (optional)
+    PostalCode   string `json:"postal_code"`     // ZIP or postal code
+    Country      string `json:"country"`         // ISO 3166-1 alpha-2 country code (e.g., "US")
+    Phone        string `json:"phone,omitempty"` // Contact phone number (optional)
 }
 ```
 
@@ -197,8 +192,8 @@ func manageOrders() {
     // Step 1: List all pending orders using functional options
     fmt.Println("=== Pending Orders ===")
     pendingOrders, err := sf.Orders().List(context.Background(),
-        orderSDK.WithStatus(order.OrderStatusPending),
-        orderSDK.WithLimit(20),
+        order.WithStatus(order.OrderStatusPending),
+        order.WithLimit(20),
     )
     if err != nil {
         log.Fatal(err)
@@ -206,17 +201,17 @@ func manageOrders() {
 
     fmt.Printf("Found %d pending orders\n", len(pendingOrders))
     for _, ord := range pendingOrders {
-        fmt.Printf("#%s - $%s - #%s\n", 
+        fmt.Printf("#%s - %d - #%s\n", 
             ord.OrderNumber, 
-            ord.TotalAmount.String(),
+            ord.TotalAmount,
             ord.ID)
     }
 
     // Step 2: List all shipped orders using functional options
     fmt.Println("\n=== Shipped Orders ===")
     shippedOrders, err := sf.Orders().List(context.Background(),
-        orderSDK.WithStatus(order.OrderStatusShipped),
-        orderSDK.WithLimit(20),
+        order.WithStatus(order.OrderStatusShipped),
+        order.WithLimit(20),
     )
     if err != nil {
         log.Fatal(err)
@@ -235,16 +230,16 @@ func manageOrders() {
 
         fmt.Printf("\n=== Order Details: #%s ===\n", ordered.OrderNumber)
         fmt.Printf("Status: %s\n", ordered.Status)
-        fmt.Printf("Total: $%s\n", ordered.TotalAmount.String())
+        fmt.Printf("Total: %d\n", ordered.TotalAmount)
         
         // Display order items
         fmt.Println("Items:")
         for _, item := range ordered.Items {
-            fmt.Printf("  - %s x%d @ $%s = $%s\n", 
+            fmt.Printf("  - %s x%d @ %d = %d\n", 
                 item.Name, 
                 item.Quantity, 
-                item.Price.String(), 
-                item.Total.String())
+                item.Price, 
+                item.Total)
         }
 
         // Display shipping address
@@ -257,12 +252,7 @@ func manageOrders() {
         }
 
         // Display customer information if available
-        if ordered.Customer != nil && ordered.Customer.Email != nil {
-            fmt.Printf("\nCustomer: %s\n", *ordered.Customer.Email)
-            if ordered.Customer.Phone != nil {
-                fmt.Printf("Phone: %s\n", *ordered.Customer.Phone)
-            }
-        }
+        fmt.Printf("\nCustomer: %s\n", ordered.CustomerEmail)
     }
 }
 ```
@@ -302,7 +292,7 @@ func handleOrderErrors() {
 
     // Invalid status filter (use constants instead of arbitrary strings)
     _, err := sf.Orders().List(context.Background(),
-        orderSDK.WithStatus("invalid_status"),  // This may cause unexpected behavior
+        order.WithStatus("invalid_status"),  // This may cause unexpected behavior
     )
     if err != nil {
         log.Printf("Filter error: %v", err)
@@ -310,7 +300,7 @@ func handleOrderErrors() {
 
     // Use proper constants with functional options
     orders, err = sf.Orders().List(context.Background(),
-        orderSDK.WithStatus(order.OrderStatusDelivered),  // Always use constants
+        order.WithStatus(order.OrderStatusDelivered),  // Always use constants
     )
 }
 ```

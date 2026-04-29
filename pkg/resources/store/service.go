@@ -13,7 +13,7 @@ type StoreService struct {
 	client *sf.StorefrontClient
 }
 
-// NewStoreService creates a new StoreService instance
+// NewStoreService creates a new stateless StoreService instance.
 func NewStoreService(client *sf.StorefrontClient) *StoreService {
 	return &StoreService{client: client}
 }

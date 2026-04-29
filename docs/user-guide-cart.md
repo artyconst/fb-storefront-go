@@ -30,11 +30,11 @@ func getCart() {
     fmt.Printf("Cart ID: %s\n", cart.ID)
     fmt.Printf("Status: %s\n", cart.Status)
     fmt.Printf("Total items: %d\n", len(cart.Items))
-    fmt.Printf("Subtotal: $%s\n", cart.Subtotal.String())
-    fmt.Printf("Total Amount: $%s\n", cart.TotalAmount.String())
+    fmt.Printf("Subtotal: $%d\n", cart.Subtotal)
+    fmt.Printf("Total Amount: $%d\n", cart.TotalAmount)
 
     for _, item := range cart.Items {
-        fmt.Printf("- %s x%d: $%s\n", item.Name, item.Quantity, item.Total.String())
+        fmt.Printf("- %s x%d: $%d\n", item.Name, item.Quantity, item.Total)
     }
 }
 ```
@@ -79,57 +79,59 @@ func addToCart() {
         log.Fatal(err)
     }
 
-    itemReq := &cart.CartItemRequest{
-        ProductID: "prod_abc123",
-        Quantity:  2,
-    }
-
-    cart, err := sf.Cart().AddItem(context.Background(), "cart_abc123", *itemReq)
+    cart, err := sf.Cart().AddItem(context.Background(), "cart_abc123", "prod_abc123", 2, nil, nil, "", "")
     if err != nil {
         log.Fatal(err)
     }
 
     fmt.Printf("Cart total items: %d\n", len(cart.Items))
-    fmt.Printf("Total amount: $%s\n", cart.TotalAmount.String())
+    fmt.Printf("Total amount: $%d\n", cart.TotalAmount)
 }
 ```
 
-**CartItemRequest Parameters:**
+**AddItem Parameters:**
 
 | Parameter | Type | Description | Required |
 |-----------|------|-------------|----------|
-| `ProductID` | string | Product identifier to add | Yes |
-| `Quantity` | int | Number of units to add | Yes |
+| `cartID` | string | Cart identifier | Yes |
+| `productID` | string | Product identifier to add | Yes |
+| `quantity` | int | Number of units to add | Yes |
+| `addons` | []interface{} | Product addons (optional) | No |
+| `variants` | []map[string]any | Product variants (optional) | No |
+| `scheduledAt` | string | Scheduled delivery time (optional) | No |
+| `storeLocation` | string | Store location identifier (optional) | No |
 
-#### Update Item Quantity
+#### Update Item
 
 Modify quantities of existing cart items:
 
 ```go
-func updateQuantity() {
+func updateItem() {
     sf, err := storefront.NewStorefront(YOUR_API_KEY)
     if err != nil {
         log.Fatal(err)
     }
 
     // Increase quantity
-    cart, err := sf.Cart().UpdateQuantity(context.Background(), "cart_abc123", "item_xyz789", 5)
+    cart, err := sf.Cart().UpdateItem(context.Background(), "cart_abc123", "item_xyz789", 5, nil, nil)
     if err != nil {
         log.Fatal(err)
     }
 
     fmt.Printf("Updated item quantity to: %d\n", 5)
-    fmt.Printf("New total: $%s\n", cart.TotalAmount.String())
+    fmt.Printf("New total: $%d\n", cart.TotalAmount)
 }
 ```
 
-**UpdateQuantity Parameters:**
+**UpdateItem Parameters:**
 
 | Parameter | Type | Description | Required |
 |-----------|------|-------------|----------|
 | `cartID` | string | Cart identifier | Yes |
-| `itemID` | string | Cart item ID to update | Yes |
+| `lineItemID` | string | Cart item ID to update | Yes |
 | `quantity` | int | New quantity (must be >= 1) | Yes |
+| `addons` | []interface{} | Product addons (optional) | No |
+| `variants` | []map[string]any | Product variants (optional) | No |
 
 #### Remove Item from Cart
 
@@ -148,7 +150,7 @@ func removeItem() {
     }
 
     fmt.Printf("Remaining items: %d\n", len(cart.Items))
-    fmt.Printf("Updated total: $%s\n", cart.TotalAmount.String())
+    fmt.Printf("Updated total: $%d\n", cart.TotalAmount)
 }
 ```
 
@@ -190,7 +192,7 @@ func checkout() {
         log.Fatal(err)
     }
 
-    checkoutReq := &cart.CheckoutRequest{
+    checkoutReq := cart.CheckoutRequest{
         CustomerEmail: "customer@example.com",
         ShippingAddress: &cart.Address{
             FirstName:    "John",
@@ -205,13 +207,13 @@ func checkout() {
         PaymentMethodID: "pm_card_visa_ending_4242",
     }
 
-    order, err := sf.Cart().Checkout(context.Background(), "cart_abc123", *checkoutReq)
+    order, err := sf.Cart().Checkout(context.Background(), "cart_abc123", checkoutReq)
     if err != nil {
         log.Fatal(err)
     }
 
     fmt.Printf("Order created: %s\n", order.OrderNumber)
-    fmt.Printf("Total paid: $%s\n", order.TotalAmount.String())
+    fmt.Printf("Total paid: $%d\n", order.TotalAmount)
 }
 ```
 
@@ -219,9 +221,11 @@ func checkout() {
 
 | Parameter | Type | Description | Required |
 |-----------|------|-------------|----------|
-| `CustomerEmail` | string | Customer email address | Yes |
-| `ShippingAddress` | *Address | Shipping address details | Yes |
-| `PaymentMethodID` | string | Payment method token from payment processor | Yes |
+| `CustomerEmail` | string | Customer email address | No |
+| `ShippingAddress` | *Address | Shipping address details | No |
+| `BillingAddress` | *Address | Billing address details (defaults to shipping) | No |
+| `PaymentMethodID` | string | Payment method token from payment processor | No |
+| `Metadata` | map[string]interface{} | Additional metadata (optional) | No |
 
 **Address Structure:**
 
@@ -246,24 +250,26 @@ The `Cart` type represents the shopping cart:
 
 ```go
 type Cart struct {
-    ID          string      // Unique cart identifier (e.g., "cart_abc123")
-    Status      CartStatus  // Current status: active, completed, or abandoned
-    CustomerID  *string     // Associated customer ID (nil for guest carts)
-    Items       []*CartItem // Array of cart items
-    Subtotal    Decimal    // Subtotal before tax and discounts
-    TaxAmount   *Decimal    // Optional calculated tax amount
-    Discount    *Decimal    // Optional discount amount applied
-    TotalAmount Decimal     // Final total (subtotal + tax - discount)
-    Currency    string      // Currency code (e.g., "USD", "EUR")
+    ID          string      `json:"id"`
+    Status      CartStatus  `json:"status"`
+    CustomerID  *string     `json:"customer_id,omitempty"`
+    Items       []*CartItem `json:"items"`
+    Subtotal    int64       `json:"subtotal,omitempty"`
+    TaxAmount   *int64      `json:"tax_amount,omitempty"`
+    Discount    *int64      `json:"discount,omitempty"`
+    TotalAmount int64       `json:"total_amount"`
+    Currency    string      `json:"currency"`
+    CreatedAt   string      `json:"created_at"`
+    UpdatedAt   string      `json:"updated_at"`
 }
 
 type CartItem struct {
-    ID        string  // Unique cart item identifier
-    ProductID string  // Related product identifier
-    Name      string  // Product name (snapshot at time of adding to cart)
-    Quantity  int     // Quantity ordered
-    Price     Decimal // Unit price per item
-    Total     Decimal // Line total (quantity × unit price)
+    ID        string `json:"id"`
+    ProductID string `json:"product_id"`
+    Name      string `json:"name"`
+    Quantity  int    `json:"quantity"`
+    Price     int64  `json:"price"`
+    Total     int64  `json:"total"`
 }
 
 type CartStatus string
@@ -292,27 +298,19 @@ func completeCartWorkflow() {
     fmt.Printf("Created cart: %s\n", cart.ID)
 
     // Step 2: Add first product
-    item1 := &cart.CartItemRequest{
-        ProductID: "prod_wireless_headphones",
-        Quantity:  1,
-    }
-    cart, err = sf.Cart().AddItem(context.Background(), cart.ID, *item1)
+    cart, err = sf.Cart().AddItem(context.Background(), cart.ID, "prod_wireless_headphones", 1, nil, nil, "", "")
     if err != nil {
         log.Fatal(err)
     }
 
     // Step 3: Add second product
-    item2 := &cart.CartItemRequest{
-        ProductID: "prod_phone_case",
-        Quantity:  2,
-    }
-    cart, err = sf.Cart().AddItem(context.Background(), cart.ID, *item2)
+    cart, err = sf.Cart().AddItem(context.Background(), cart.ID, "prod_phone_case", 2, nil, nil, "", "")
     if err != nil {
         log.Fatal(err)
     }
 
     // Step 4: Update quantity of first item
-    cart, err = sf.Cart().UpdateQuantity(context.Background(), cart.ID, cart.Items[0].ID, 3)
+    cart, err = sf.Cart().UpdateItem(context.Background(), cart.ID, cart.Items[0].ID, 3, nil, nil)
     if err != nil {
         log.Fatal(err)
     }
@@ -320,11 +318,11 @@ func completeCartWorkflow() {
     // Step 5: Display cart contents
     fmt.Printf("Cart Summary:\n")
     for _, item := range cart.Items {
-        fmt.Printf("- %s x%d @ $%s = $%s\n", 
-            item.Name, item.Quantity, item.Price.String(), item.Total.String())
+        fmt.Printf("- %s x%d @ $%d = $%d\n", 
+            item.Name, item.Quantity, item.Price, item.Total)
     }
-    fmt.Printf("Subtotal: $%s\n", cart.Subtotal.String())
-    fmt.Printf("Total: $%s\n", cart.TotalAmount.String())
+    fmt.Printf("Subtotal: $%d\n", cart.Subtotal)
+    fmt.Printf("Total: $%d\n", cart.TotalAmount)
 
     // Step 6: Remove one item
     cart, err = sf.Cart().RemoveItem(context.Background(), cart.ID, cart.Items[1].ID)
@@ -333,7 +331,7 @@ func completeCartWorkflow() {
     }
 
     // Step 7: Checkout with shipping and payment details
-    checkoutReq := &cart.CheckoutRequest{
+    checkoutReq := cart.CheckoutRequest{
         CustomerEmail: "john.doe@example.com",
         ShippingAddress: &cart.Address{
             FirstName:    "John",
@@ -348,7 +346,7 @@ func completeCartWorkflow() {
         PaymentMethodID: "pm_card_visa_ending_4242",
     }
 
-    order, err := sf.Cart().Checkout(context.Background(), cart.ID, *checkoutReq)
+    order, err := sf.Cart().Checkout(context.Background(), cart.ID, checkoutReq)
     if err != nil {
         log.Fatal(err)
     }
@@ -379,7 +377,7 @@ func handleCartErrors() {
     }
 
     // Invalid quantity (must be >= 1)
-    _, err = sf.Cart().UpdateQuantity(context.Background(), "cart_abc", "item_xyz", 0)
+    _, err = sf.Cart().UpdateItem(context.Background(), "cart_abc", "item_xyz", 0, nil, nil)
     if err != nil {
         log.Printf("Invalid quantity error: %v", err)
     }
