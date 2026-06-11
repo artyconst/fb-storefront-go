@@ -33,6 +33,7 @@ import (
 
 // Initialize SDK with basic configuration (replace with your actual API key)
 client, err := storefront.NewStorefront("sk_test_your_storefront_key_here",
+    storefront.WithUserAgent("MyApp/1.0"),                            // Required: identifies your application to the server
     // Uncomment and modify these for advanced configuration:
     // storefront.WithAPIHost("https://api.custom-domain.com"),      // Custom API host URL
     // storefront.WithTimeout(60 * time.Second),                     // HTTP timeout (time.Duration)
@@ -60,7 +61,9 @@ import (
 )
 
 func main() {
-    client, err := storefront.NewStorefront("sk_test_your_storefront_key_here")
+    client, err := storefront.NewStorefront("sk_test_your_storefront_key_here",
+        storefront.WithUserAgent("MyApp/1.0"),
+    )
     if err != nil {
         log.Fatal(err)
     }
@@ -97,6 +100,7 @@ Note: These examples require setting the `STOREFRONT_KEY` environment variable w
 
 | Option | Description | Example |
 |--------|-------------|---------|
+| `WithUserAgent(ua)` | **Required.** Custom User-Agent header identifying your application. The server rejects requests without one (403). | `WithUserAgent("MyApp/1.0")` |
 | `WithAPIHost(host)` | Custom API host URL | `WithAPIHost("https://api.example.com")` |
 | `WithTimeout(duration)` | HTTP timeout (time.Duration) | `WithTimeout(60 * time.Second)` |
 | `WithLogLevel(level)` | Log level (Error, Warn, Info, Debug) | `WithLogLevel(config.LevelDebug)` |

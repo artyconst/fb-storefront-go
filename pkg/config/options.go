@@ -55,6 +55,15 @@ func WithTimeout(seconds time.Duration) Option {
 	}
 }
 
+// WithUserAgent sets the User-Agent header for all API requests made by the SDK.
+func WithUserAgent(userAgent string) Option {
+	return func(c *sf.ClientConfig) {
+		if userAgent != "" {
+			c.UserAgent = userAgent
+		}
+	}
+}
+
 // WithLogLevel sets the minimum log level.
 func WithLogLevel(level sf.LogLevel) Option {
 	return func(c *sf.ClientConfig) {

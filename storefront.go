@@ -42,6 +42,7 @@ var (
 	WithAPIHost      = sfconfig.WithAPIHost
 	WithAPIPath      = sfconfig.WithAPIPath
 	WithTimeout      = sfconfig.WithTimeout
+	WithUserAgent    = sfconfig.WithUserAgent
 	WithLogLevel     = sfconfig.WithLogLevel
 	WithLoggerOutput = sfconfig.WithLoggerOutput
 	WithDebugMode    = sfconfig.WithDebugMode
@@ -51,6 +52,7 @@ var (
 type StorefrontClient struct {
 	baseURL    string
 	apiKey     string
+	userAgent  string
 	httpClient *http.Client
 	logger     *StdLogger
 	rawLogger  *RawResponseLogger
@@ -132,6 +134,7 @@ func newStorefrontClient(config ClientConfig) (*StorefrontClient, error) {
 	return &StorefrontClient{
 		baseURL:    baseURL,
 		apiKey:     config.APIKey,
+		userAgent:  config.UserAgent,
 		httpClient: &http.Client{Timeout: config.Timeout},
 		logger:     logger,
 		rawLogger:  rawLogger,
@@ -158,6 +161,10 @@ func (c *StorefrontClient) doRequest(ctx context.Context, method, endpoint strin
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	if c.userAgent != "" {
+		req.Header.Set("User-Agent", c.userAgent)
+	}
 
 	// Apply Customer-Token header if provided via options
 	var reqOpts RequestOptions

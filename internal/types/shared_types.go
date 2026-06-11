@@ -55,6 +55,7 @@ type ClientConfig struct {
 	ServerURL    string         // Server URL without API path, e.g., "https://api.fleetbase.io" or custom endpoint
 	APIPath      string         // API path appended to server URL (default: "/storefront/v1")
 	APIKey       string         // Required: Bearer token
+	UserAgent    string         // Custom User-Agent header for API requests
 	Timeout      time.Duration  // Default 30s
 	LogLevel     LogLevel       // Minimum log level (default: LevelInfo)
 	LoggerOutput io.Writer      // Output writer (default: os.Stdout)

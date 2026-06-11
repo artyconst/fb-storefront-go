@@ -42,6 +42,7 @@ Always initialize the client with proper error handling:
 import sf "github.com/artyconst/fb-storefront-go"
 
 sfClient, err := sf.NewStorefront("sk_test_your_api_key_here",
+    sf.WithUserAgent("MyApp/1.0"),                            // Required: identifies your application to the server
     sf.WithAPIHost("https://api.storefront.fleetbase.io/v1"),  // Optional custom host
     sf.WithTimeout(60),                                        // Optional timeout in seconds
     sf.WithLogLevel(sf.LevelDebug),                           // Optional log level
@@ -288,6 +289,7 @@ All configuration uses the functional options pattern:
 
 | Option | Description | Example |
 |--------|-------------|---------|
+| `WithUserAgent(ua)` | **Required.** Custom User-Agent header. The server rejects requests without one (403). | `WithUserAgent("MyApp/1.0")` |
 | `WithAPIHost(host)` | Custom API host URL | `WithAPIHost("https://api.example.com")` |
 | `WithAPIPath(path)` | Custom API path suffix | `WithAPIPath("/v1/custom")` |
 | `WithTimeout(seconds)` | HTTP timeout in seconds | `WithTimeout(60)` |
@@ -526,6 +528,7 @@ Use these helpers when you need to send optional fields in requests.
 
 Before implementing SDK features, verify:
 
+- [ ] Client initialized with WithUserAgent option (required by server, returns 403 without it)
 - [ ] Client initialized with proper error handling
 - [ ] All service methods called with context.Context as first parameter
 - [ ] Errors checked and wrapped appropriately using `%w`

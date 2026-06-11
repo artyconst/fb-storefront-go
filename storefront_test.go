@@ -104,6 +104,72 @@ func TestAboutStoreResponse(t *testing.T) {
 	}
 }
 
+func TestClientUserAgentHeader(t *testing.T) {
+	expectedUA := "MyApp/1.0"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ua := r.Header.Get("User-Agent")
+		if ua != expectedUA {
+			t.Errorf("Expected User-Agent '%s', got '%s'", expectedUA, ua)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":"test","name":"Test Store","created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-01T00:00:00Z"}`))
+	}))
+	defer server.Close()
+
+	client, err := newStorefrontClient(ClientConfig{
+		ServerURL: server.URL,
+		APIKey:    "test_api_key",
+		UserAgent: expectedUA,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var resp AboutStoreResponse
+	err = client.GetJSON(context.Background(), "/about", &resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.ID != "test" {
+		t.Errorf("Expected ID 'test', got '%s'", resp.ID)
+	}
+}
+
+func TestClientUserAgentEmptyNotSet(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// When no User-Agent is configured, the Go stdlib sets its own default.
+		// We just verify that our custom value was not injected (i.e., it's not "MyApp/1.0").
+		ua := r.Header.Get("User-Agent")
+		if ua == "MyApp/1.0" {
+			t.Error("Expected no custom User-Agent, but got 'MyApp/1.0'")
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":"test","name":"Test Store","created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-01T00:00:00Z"}`))
+	}))
+	defer server.Close()
+
+	client, err := newStorefrontClient(ClientConfig{
+		ServerURL: server.URL,
+		APIKey:    "test_api_key",
+		UserAgent: "",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var resp AboutStoreResponse
+	err = client.GetJSON(context.Background(), "/about", &resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.ID != "test" {
+		t.Errorf("Expected ID 'test', got '%s'", resp.ID)
+	}
+}
+
 func TestWithAPIHostNormalization(t *testing.T) {
 	tests := []struct {
 		name     string
