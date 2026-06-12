@@ -127,6 +127,84 @@ The Orders service provides the following methods:
 |--------|-------------|------------|---------|
 | `List(ctx, opts)` | Get paginated list of orders | ListOptions with filters | Array of Order objects |
 | `Get(ctx, orderID)` | Retrieve specific order by ID | Order ID string | Single Order object |
+| `Create(ctx, cartID)` | Create an order from a cart | Cart ID string | Single Order object |
+| `MarkPickedUp(ctx, orderID)` | Mark a pickup order as collected | Order ID string | error |
+| `GenerateReceipt(ctx, orderID, opts)` | Generate a receipt for an order | Order ID string, optional format options | Receipt object |
+
+#### Order Operations
+
+##### Create (Create order from cart)
+
+Create an order directly from an existing cart:
+
+```go
+func createOrder() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Create an order directly from a cart
+    order, err := sf.Orders().Create(context.Background(), "cart_01J...")
+    if err != nil {
+        log.Fatalf("Failed to create order: %v", err)
+    }
+
+    fmt.Printf("Created order: %s (status: %s)\n", order.ID, order.Status)
+}
+```
+
+##### MarkPickedUp (Mark an order as picked up for pickup orders)
+
+Mark a pickup order as collected by the customer:
+
+```go
+func markOrderPickedUp() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Mark a pickup order as collected by the customer
+    err = sf.Orders().MarkPickedUp(context.Background(), "order_01J...")
+    if err != nil {
+        log.Fatalf("Failed to mark order as picked up: %v", err)
+    }
+
+    fmt.Println("Order marked as picked up")
+}
+```
+
+##### GenerateReceipt (Generate a receipt for an order)
+
+Generate a receipt for an order, with optional format customization:
+
+```go
+func generateReceipt() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Generate a receipt with default format
+    receipt, err := sf.Orders().GenerateReceipt(context.Background(), "order_01J...")
+    if err != nil {
+        log.Fatalf("Failed to generate receipt: %v", err)
+    }
+
+    fmt.Printf("Generated receipt for order: %s\n", receipt.OrderID)
+
+    // Generate a PDF receipt with specific format options
+    receipt, err = sf.Orders().GenerateReceipt(context.Background(), "order_01J...",
+        order.WithReceiptFormat("pdf"),
+    )
+    if err != nil {
+        log.Fatalf("Failed to generate PDF receipt: %v", err)
+    }
+
+    fmt.Printf("PDF receipt generated for order: %s\n", receipt.OrderID)
+}
+```
 
 #### Order Structure
 

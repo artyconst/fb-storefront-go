@@ -209,6 +209,204 @@ const (
 )
 ```
 
+### Advanced Checkout Methods
+
+The following methods provide additional checkout capabilities including preview, status checking, QPay integration, delivery quotes, and payment intent updates.
+
+#### Initialize (Checkout Preview)
+
+Get a checkout preview before creating an actual checkout session using the `/before` endpoint:
+
+```go
+import (
+    "context"
+    "fmt"
+    "log"
+
+    checkoutSDK "github.com/artyconst/fb-storefront-go/pkg/checkout"
+)
+
+func initializeCheckout() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    preview, err := sf.Checkout().Initialize(context.Background(),
+        checkoutSDK.WithInitProductID("prod_01J..."),
+        checkoutSDK.WithInitQuantity(2),
+    )
+    if err != nil {
+        log.Fatalf("Failed to initialize checkout: %v", err)
+    }
+
+    fmt.Printf("Checkout preview subtotal: %d\n", preview.Subtotal)
+}
+```
+
+**Initialize Functional Options:**
+
+| Option | Type | Description | Required |
+|--------|------|-------------|----------|
+| `WithInitProductID` | string | Product ID to include in the checkout preview | Yes (at least one product required) |
+| `WithInitQuantity` | int | Quantity of the product for the preview | No (default: 1) |
+
+#### Status (Check Checkout Status)
+
+Retrieve the current status of a checkout session by its token:
+
+```go
+func getCheckoutStatus() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    status, err := sf.Checkout().Status(context.Background(),
+        checkoutSDK.WithStatusToken("checkout_token_here"),
+    )
+    if err != nil {
+        log.Fatalf("Failed to get checkout status: %v", err)
+    }
+
+    fmt.Printf("Checkout status: %s\n", status.Status)
+}
+```
+
+**Status Functional Options:**
+
+| Option | Type | Description | Required |
+|--------|------|-------------|----------|
+| `WithStatusToken` | string | Checkout token to look up the status for | Yes |
+
+#### CaptureCheckout (Capture with Functional Options)
+
+Capture a checkout session using functional options for additional parameters:
+
+```go
+func captureCheckout() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    checkout, err := sf.Checkout().CaptureCheckout(context.Background(), "checkout_token_here",
+        checkoutSDK.WithNotes("Gift for birthday"),
+    )
+    if err != nil {
+        log.Fatalf("Failed to capture checkout: %v", err)
+    }
+
+    fmt.Printf("Captured checkout: %s\n", checkout.ID)
+}
+```
+
+**CaptureCheckout Functional Options:**
+
+| Option | Type | Description | Required |
+|--------|------|-------------|----------|
+| `WithNotes` | string | Additional notes to attach to the captured checkout | No |
+
+#### CaptureQPay (QPay Payment Gateway Callback)
+
+Capture a checkout through the QPay payment gateway callback flow. This method is used when integrating with QPay as your payment processor:
+
+```go
+func captureViaQPay() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Standard QPay capture
+    order, err := sf.Checkout().CaptureQPay(context.Background(), "checkout_01J...", false, nil)
+    if err != nil {
+        log.Fatalf("Failed to capture QPay: %v", err)
+    }
+
+    fmt.Printf("Order captured via QPay: %s (status: %s)\n", order.ID, order.Status)
+
+    // With test mode enabled
+    testMode := "true"
+    order, err = sf.Checkout().CaptureQPay(context.Background(), "checkout_01J...", false, &testMode)
+    if err != nil {
+        log.Fatalf("Failed to capture QPay in test mode: %v", err)
+    }
+
+    fmt.Printf("Test mode order captured: %s\n", order.ID)
+}
+```
+
+**CaptureQPay Parameters:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| `checkoutID` | string | Checkout ID to capture via QPay | Yes |
+| `isTestMode` | bool | Whether the request is in test mode (deprecated, use `testMode` param) | No |
+| `testMode` | *string | Optional test mode flag passed as pointer; set to `"true"` for sandbox testing | No |
+
+#### GetDeliveryServiceQuote (Delivery Pricing Estimate)
+
+Get a delivery pricing estimate based on store location and customer coordinates:
+
+```go
+func getDeliveryQuote() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    quote, err := sf.Checkout().GetDeliveryServiceQuote(context.Background(), checkoutSDK.ServiceQuoteParams{
+        StoreID:     "store_01J...",
+        LocationID:  "loc_01J...",
+        CustomerLat: 40.7128,
+        CustomerLng: -74.0060,
+    })
+    if err != nil {
+        log.Fatalf("Failed to get delivery quote: %v", err)
+    }
+
+    fmt.Printf("Delivery estimate: $%.2f\n", float64(quote.Price)/100)
+}
+```
+
+**ServiceQuoteParams Parameters:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| `StoreID` | string | Store ID to calculate delivery from | Yes |
+| `LocationID` | string | Location ID for the delivery origin | Yes |
+| `CustomerLat` | float64 | Customer latitude coordinate | Yes |
+| `CustomerLng` | float64 | Customer longitude coordinate | Yes |
+
+#### UpdatePaymentIntent (Update Payment Intent During Checkout)
+
+Update an existing payment intent during checkout, for example to adjust the amount:
+
+```go
+func updatePaymentIntent() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    preview, err := sf.Checkout().UpdatePaymentIntent(context.Background(), "pi_01J...",
+        checkoutSDK.WithUpdateIntentAmount(2500), // $25.00 in cents
+    )
+    if err != nil {
+        log.Fatalf("Failed to update payment intent: %v", err)
+    }
+
+    fmt.Printf("Updated payment intent preview subtotal: %d\n", preview.Subtotal)
+}
+```
+
+**UpdatePaymentIntent Functional Options:**
+
+| Option | Type | Description | Required |
+|--------|------|-------------|----------|
+| `WithUpdateIntentAmount` | int64 | New amount in smallest currency unit (e.g., cents) | Yes |
+
 #### Complete Checkout Workflow Example
 
 This example demonstrates a complete checkout flow with error handling:

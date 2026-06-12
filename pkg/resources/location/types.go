@@ -4,13 +4,39 @@ import (
 	"time"
 )
 
-// StoreLocation represents a store location with its place details and working hours.
+// StoreLocation represents a store location returned by the dedicated /store-locations endpoint.
 type StoreLocation struct {
-	ID        string      `json:"id"`
-	Place     *Place      `json:"place"`
-	Hours     []StoreHour `json:"hours"`
-	CreatedAt time.Time   `json:"created_at"`
-	UpdatedAt time.Time   `json:"updated_at"`
+	ID      string  `json:"id"`
+	Name    string  `json:"name,omitempty"`
+	Address *Address `json:"address,omitempty"`
+	Hours   *Hours  `json:"hours,omitempty"`
+}
+
+// Address represents a physical address for a store location.
+type Address struct {
+	Line1   string `json:"line_1,omitempty"`
+	Line2   string `json:"line_2,omitempty"`
+	City    string `json:"city,omitempty"`
+	State   string `json:"state,omitempty"`
+	Zip     string `json:"zip,omitempty"`
+	Country string `json:"country,omitempty"`
+}
+
+// Hours represents the weekly working hours for a store location.
+type Hours struct {
+	Monday    *DayHours `json:"monday,omitempty"`
+	Tuesday   *DayHours `json:"tuesday,omitempty"`
+	Wednesday *DayHours `json:"wednesday,omitempty"`
+	Thursday  *DayHours `json:"thursday,omitempty"`
+	Friday    *DayHours `json:"friday,omitempty"`
+	Saturday  *DayHours `json:"saturday,omitempty"`
+	Sunday    *DayHours `json:"sunday,omitempty"`
+}
+
+// DayHours represents the open and close times for a single day.
+type DayHours struct {
+	Open  string `json:"open,omitempty"`
+	Close string `json:"close,omitempty"`
 }
 
 // Place represents a location with address and coordinates.
@@ -37,7 +63,7 @@ type Location struct {
 	Slug      string                 `json:"slug,omitempty"`
 	Place     *Place                 `json:"place,omitempty"`
 	Hours     []StoreHour            `json:"hours,omitempty"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
 	CreatedAt time.Time              `json:"created_at"`
 	UpdatedAt time.Time              `json:"updated_at"`
 }

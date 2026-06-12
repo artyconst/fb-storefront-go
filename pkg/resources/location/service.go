@@ -80,3 +80,13 @@ func (s *Service) Get(ctx context.Context, storeID, locationID string, opts ...L
 
 	return &loc, nil
 }
+
+// ListLocations retrieves all store locations via the dedicated endpoint - GET /store-locations.
+func (s *Service) ListLocations(ctx context.Context) ([]*StoreLocation, error) {
+	var locations []*StoreLocation
+	if err := s.client.GetJSON(ctx, "/store-locations", &locations); err != nil {
+		return nil, fmt.Errorf("failed to list store locations: %w", err)
+	}
+
+	return locations, nil
+}

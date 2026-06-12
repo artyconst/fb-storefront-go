@@ -9,8 +9,8 @@ type Category struct {
 	Description  *string                `json:"description,omitempty"`
 	IconURL      string                 `json:"icon_url,omitempty"`
 	Tags         []string               `json:"tags,omitempty"`
-	Translations []interface{}          `json:"translations,omitempty"`
-	Meta         map[string]interface{} `json:"meta,omitempty"`
+	Translations []any          `json:"translations,omitempty"`
+	Meta         map[string]any `json:"meta,omitempty"`
 	Order        *int64                 `json:"order,omitempty"`
 	Slug         string                 `json:"slug,omitempty"`
 	CreatedAt    time.Time              `json:"created_at"`

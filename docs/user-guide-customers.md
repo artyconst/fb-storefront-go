@@ -112,6 +112,16 @@ The Customers service provides the following methods:
 | `ListOrders(ctx, token, opts)` | List customer orders | Auth token + optional pagination | List of orders |
 | `RequestCreationCode(ctx, req)` | Request account creation code | Request creation code request | Error (nil on success) |
 | `RegisterDevice(ctx, token, req)` | Register push notification device | Auth token + device request | Registration response |
+| `LoginWithFacebook(ctx, facebookUserID, email, name)` | Authenticate via Facebook Sign-In | Facebook user ID + optional email/name | Customer details |
+| `LoginWithApple(ctx, identityToken, authCode)` | Authenticate via Apple Sign-In | Apple ID token + optional auth code | Login response with token |
+| `LoginWithGoogle(ctx, idToken, clientID)` | Authenticate via Google Sign-In | Google ID token + client ID | Login response with token |
+| `RequestPhoneVerification(ctx, phone)` | Send verification code to phone | Phone number (E.164 format) | Error (nil on success) |
+| `VerifyPhoneNumber(ctx, code, phone)` | Verify phone with received code | Verification code + phone number | Error (nil on success) |
+| `Update(ctx, id, opts...)` | Update customer profile | Customer ID + functional options | Updated customer |
+| `GetStripeEphemeralKey(ctx)` | Get Stripe ephemeral key | None (requires auth session) | Ephemeral key string |
+| `CreateStripeSetupIntent(ctx)` | Create Stripe Setup Intent | None (requires auth session) | StripeSetupIntent response |
+| `InitiateAccountClosure(ctx)` | Start account closure process | None (requires auth session) | Error (nil on success) |
+| `ConfirmAccountClosure(ctx, code)` | Complete account closure | Confirmation code string | Error (nil on success) |
 
 #### Customer Structure
 
@@ -235,19 +245,14 @@ func customerShoppingFlow() {
 
     fmt.Printf("Welcome, %s!\n", derefString(customer.Name))
 
-    // 2. Create cart associated with customer
-    cart, err := sf.Cart().Create(context.Background(), customer.ID)
+    // 2. Get or create cart (creates implicitly if it doesn't exist)
+    cart, err := sf.Cart().Get(context.Background(), "cart_"+customer.ID)
     if err != nil {
         log.Fatal(err)
     }
 
     // 3. Add products to cart
-    itemReq := &cart.CartItemRequest{
-        ProductID: "prod_example_product",
-        Quantity:  2,
-    }
-
-    cart, err = sf.Cart().AddItem(context.Background(), cart.ID, *itemReq)
+    cart, err = sf.Cart().AddItem(context.Background(), cart.ID, "prod_example_product", 2, nil, nil, "", "")
     if err != nil {
         log.Fatal(err)
     }
@@ -256,12 +261,13 @@ func customerShoppingFlow() {
     checkoutReq := &cart.CheckoutRequest{
         CustomerEmail: derefString(customer.Email),
         ShippingAddress: &cart.Address{
-            Name:       "Jane Smith",
+            FirstName:    "Jane",
+            LastName:     "Smith",
             AddressLine1: "456 Oak Ave",
-            City:       "Los Angeles",
-            State:      "CA",
-            PostalCode: "90001",
-            Country:    "US",
+            City:         "Los Angeles",
+            State:        "CA",
+            PostalCode:   "90001",
+            Country:      "US",
         },
         PaymentMethodID: "pm_card_mastercard_ending_5555",
     }
@@ -398,3 +404,319 @@ func listCustomerOrders(token string) {
     }
 }
 ```
+
+#### OAuth Authentication
+
+Authenticate customers using third-party identity providers (Facebook, Apple, Google). These methods handle the full authentication flow and return a customer instance or login response.
+
+##### LoginWithFacebook
+
+Authenticate via Facebook Sign-In:
+
+```go
+func authenticateWithFacebook() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    customerService := customerSDK.NewCustomerService(sf)
+
+    // Authenticate with just the Facebook user ID
+    customer, err := customerService.LoginWithFacebook(context.Background(), "facebook_user_123", nil, nil)
+    if err != nil {
+        log.Fatalf("Failed to login with Facebook: %v", err)
+    }
+    fmt.Printf("Logged in as customer: %s\n", customer.ID)
+
+    // With optional email and name
+    email := "user@example.com"
+    name := "John Doe"
+    customer, err = customerService.LoginWithFacebook(context.Background(), "facebook_user_123", &email, &name)
+    if err != nil {
+        log.Fatalf("Failed to login with Facebook: %v", err)
+    }
+    fmt.Printf("Logged in as customer: %s\n", customer.ID)
+}
+```
+
+**LoginWithFacebook Parameters:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| `facebookUserID` | `string` | The Facebook user identifier | Yes |
+| `email` | `*string` | Optional email address to associate with the account | No |
+| `name` | `*string` | Optional display name for the customer | No |
+
+##### LoginWithApple
+
+Authenticate via Apple Sign-In:
+
+```go
+func authenticateWithApple() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    customerService := customerSDK.NewCustomerService(sf)
+
+    identityToken := "eyJhbGciOiJSUzI1NiIs..."  // Apple ID token from Sign In with Apple
+    authCode := "AUTH_CODE_FROM_APPLE"           // Optional authorization code
+
+    loginResp, err := customerService.LoginWithApple(context.Background(), identityToken, authCode)
+    if err != nil {
+        log.Fatalf("Failed to login with Apple: %v", err)
+    }
+    fmt.Printf("Logged in as customer: %s\n", loginResp.Customer.ID)
+}
+```
+
+**LoginWithApple Parameters:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| `identityToken` | `string` | Apple ID token received from Sign In with Apple flow | Yes |
+| `authCode` | `string` | Optional authorization code from Apple | No |
+
+##### LoginWithGoogle
+
+Authenticate via Google Sign-In:
+
+```go
+func authenticateWithGoogle() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    customerService := customerSDK.NewCustomerService(sf)
+
+    idToken := "eyJhbGciOiJSUzI1NiIs..."  // Google ID token from Sign In with Google flow
+    clientID := "your-google-client-id.apps.googleusercontent.com"
+
+    loginResp, err := customerService.LoginWithGoogle(context.Background(), idToken, clientID)
+    if err != nil {
+        log.Fatalf("Failed to login with Google: %v", err)
+    }
+    fmt.Printf("Logged in as customer: %s\n", loginResp.Customer.ID)
+}
+```
+
+**LoginWithGoogle Parameters:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| `idToken` | `string` | Google ID token received from Sign In with Google flow | Yes |
+| `clientID` | `string` | Your Google OAuth client ID | Yes |
+
+#### Phone Verification
+
+Verify a customer's phone number using a one-time code sent via SMS. This is useful for confirming contact information or adding an extra layer of security to the account.
+
+##### RequestPhoneVerification
+
+Send a verification code to the customer's phone number:
+
+```go
+func requestPhoneVerification() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    customerService := customerSDK.NewCustomerService(sf)
+
+    // Send a verification code to the phone number
+    err = customerService.RequestPhoneVerification(context.Background(), "+1234567890")
+    if err != nil {
+        log.Fatalf("Failed to request phone verification: %v", err)
+    }
+    fmt.Println("Verification code sent")
+}
+```
+
+**RequestPhoneVerification Parameters:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| `phone` | `string` | The phone number to verify (E.164 format) | Yes |
+
+##### VerifyPhoneNumber
+
+Verify the phone number with the received code:
+
+```go
+func verifyPhoneNumber() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    customerService := customerSDK.NewCustomerService(sf)
+
+    // Verify the phone number using the code received via SMS
+    err = customerService.VerifyPhoneNumber(context.Background(), "123456", "+1234567890")
+    if err != nil {
+        log.Fatalf("Failed to verify phone number: %v", err)
+    }
+    fmt.Println("Phone number verified successfully")
+}
+```
+
+**VerifyPhoneNumber Parameters:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| `code` | `string` | The verification code received via SMS | Yes |
+| `phone` | `string` | The phone number being verified (E.164 format) | Yes |
+
+#### Stripe Integration
+
+Integrate with Stripe for payment method management. These methods require an authenticated customer session and are used to set up payment methods securely without exposing sensitive card details to your server.
+
+##### GetStripeEphemeralKey
+
+Get an ephemeral key for Stripe.js (requires authenticated session):
+
+```go
+func getStripeEphemeralKey() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    customerService := customerSDK.NewCustomerService(sf)
+
+    // Get an ephemeral key for Stripe.js (requires authenticated session)
+    key, err := customerService.GetStripeEphemeralKey(context.Background())
+    if err != nil {
+        log.Fatalf("Failed to get Stripe ephemeral key: %v", err)
+    }
+    fmt.Printf("Got ephemeral key: %s...\n", key[:min(len(key), 20)])
+}
+```
+
+##### CreateStripeSetupIntent
+
+Create a Stripe Setup Intent for saving payment methods (requires authenticated session):
+
+```go
+func createStripeSetupIntent() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    customerService := customerSDK.NewCustomerService(sf)
+
+    // Create a Stripe Setup Intent for saving payment methods (requires authenticated session)
+    setupIntent, err := customerService.CreateStripeSetupIntent(context.Background())
+    if err != nil {
+        log.Fatalf("Failed to create setup intent: %v", err)
+    }
+    fmt.Printf("Client secret: %s...\n", setupIntent.ClientSecret[:min(len(setupIntent.ClientSecret), 20)])
+}
+```
+
+**StripeSetupIntent Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ClientSecret` | `string` | The client secret used with Stripe.js on the frontend |
+| `IntentID` | `string` | The Stripe Setup Intent ID for server-side reference |
+
+#### Account Management
+
+Manage customer account lifecycle including profile updates and account closure. These methods require an authenticated session unless otherwise noted.
+
+##### Update (functional options pattern)
+
+Update customer information using functional options:
+
+```go
+func updateCustomer() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    customerService := customerSDK.NewCustomerService(sf)
+
+    // Update customer information using functional options
+    customer, err := customerService.Update(context.Background(), "cust_01J...",
+        customerSDK.WithName("Jane Doe"),
+        customerSDK.WithEmail("jane@example.com"),
+    )
+    if err != nil {
+        log.Fatalf("Failed to update customer: %v", err)
+    }
+    fmt.Printf("Updated customer: %s\n", derefString(customer.Name))
+
+    // Update only the phone number
+    customer, err = customerService.Update(context.Background(), "cust_01J...",
+        customerSDK.WithPhone("+14155559876"),
+    )
+    if err != nil {
+        log.Fatalf("Failed to update customer: %v", err)
+    }
+}
+```
+
+**Update Functional Options:**
+
+| Option | Description |
+|--------|-------------|
+| `WithName(name string)` | Set the customer's display name |
+| `WithEmail(email string)` | Set the customer's email address |
+| `WithPhone(phone string)` | Set the customer's phone number |
+
+##### InitiateAccountClosure
+
+Start the account closure process (requires authenticated session):
+
+```go
+func initiateAccountClosure() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    customerService := customerSDK.NewCustomerService(sf)
+
+    // Start the account closure process (requires authenticated session)
+    err = customerService.InitiateAccountClosure(context.Background())
+    if err != nil {
+        log.Fatalf("Failed to initiate account closure: %v", err)
+    }
+    fmt.Println("Account closure initiated — confirmation code sent")
+}
+```
+
+##### ConfirmAccountClosure
+
+Confirm and complete the account closure (requires authenticated session):
+
+```go
+func confirmAccountClosure() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    customerService := customerSDK.NewCustomerService(sf)
+
+    // Confirm and complete the account closure (requires authenticated session)
+    err = customerService.ConfirmAccountClosure(context.Background(), "closure_code_123")
+    if err != nil {
+        log.Fatalf("Failed to confirm account closure: %v", err)
+    }
+    fmt.Println("Account closed successfully")
+}
+```
+
+**ConfirmAccountClosure Parameters:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| `code` | `string` | The confirmation code received after initiating account closure | Yes |

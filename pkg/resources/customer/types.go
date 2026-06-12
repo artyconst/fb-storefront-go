@@ -1,41 +1,57 @@
 package customer
 
-import "fmt"
+import (
+	"errors"
+	"time"
+)
 
 // Customer represents a customer in the system.
 type Customer struct {
-	ID        string  `json:"id"`
-	Name      *string `json:"name,omitempty"`
-	Email     *string `json:"email,omitempty"`
-	Phone     *string `json:"phone,omitempty"`
-	Type      *string `json:"type,omitempty"`
-	CreatedAt string  `json:"created_at"`
-	UpdatedAt string  `json:"updated_at"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name,omitempty"`
+	Email     string    `json:"email,omitempty"`
+	Phone     *string   `json:"phone,omitempty"`
+	AvatarURL *string   `json:"avatar_url,omitempty"`
+	CreatedAt time.Time `json:"created_at,omitzero"`
+	UpdatedAt time.Time `json:"updated_at,omitzero"`
 }
 
-// LoginRequest for customer authentication.
+// ErrCustomerTokenRequired is returned when a customer token is required but not provided.
+var ErrCustomerTokenRequired = errors.New("customer token is required")
+
+// LoginRequest holds credentials for the Login operation.
 type LoginRequest struct {
 	Identity string `json:"identity"`
 	Password string `json:"password"`
 }
 
-// SMSSignInRequest for SMS-based authentication initiation.
+// LoginResponse represents the response from a login operation.
+type LoginResponse struct {
+	Customer *Customer `json:"customer,omitempty"`
+	Token    string    `json:"token,omitempty"`
+}
+
+// SMSSignInRequest holds parameters for SMS-based authentication initiation.
 type SMSSignInRequest struct {
 	Identity string `json:"identity"`
 }
 
-// SMSConfirmSignInRequest for confirming SMS code.
+// SMSConfirmSignInRequest holds parameters for confirming an SMS code.
 type SMSConfirmSignInRequest struct {
 	Identity string `json:"identity"`
 	Code     string `json:"code"`
 }
 
-// LoginResponse contains authentication tokens and customer info.
-type LoginResponse struct {
-	Token     string    `json:"token"`
-	Customer  *Customer `json:"customer"`
-	ExpiresAt string    `json:"expires_at,omitempty"`
-}
+// LoginOptions holds optional parameters for the Login operation.
+type LoginOptions struct{}
+
+// VerifyCodeOptions holds optional parameters for the VerifyCode operation.
+type VerifyCodeOptions struct{}
+
+// OAuthOptions holds optional parameters for OAuth login operations.
+type OAuthOptions struct{}
+
+// --- Non-P0 types (existing, kept for compatibility) ---
 
 // CustomerCreateRequest for creating customers.
 type CustomerCreateRequest struct {
@@ -46,7 +62,7 @@ type CustomerCreateRequest struct {
 	Title    *string                `json:"title,omitempty"`
 	Email    *string                `json:"email,omitempty"`
 	Phone    *string                `json:"phone,omitempty"`
-	Meta     map[string]interface{} `json:"meta,omitempty"`
+	Meta     map[string]any         `json:"meta,omitempty"`
 }
 
 // Place represents a customer's saved location/destination.
@@ -157,7 +173,33 @@ type RegisterDeviceResponse struct {
 	Message string `json:"message"`
 }
 
-// Customer service specific errors.
-var (
-	ErrCustomerTokenRequired = fmt.Errorf("customer authentication token is required")
-)
+// StripeSetupIntent represents a Stripe setup intent response.
+type StripeSetupIntent struct {
+	ClientSecret string `json:"client_secret"`
+	IntentID     string `json:"intent_id,omitempty"`
+}
+
+// UpdateCustomerOptions holds optional parameters for the Update operation.
+type UpdateCustomerOptions struct {
+	Name  *string `json:"name,omitempty"`
+	Email *string `json:"email,omitempty"`
+	Phone *string `json:"phone,omitempty"`
+}
+
+// UpdateOption is a functional option for the Update method.
+type UpdateOption func(*UpdateCustomerOptions)
+
+// WithName sets the customer's name for update.
+func WithName(name string) UpdateOption {
+	return func(o *UpdateCustomerOptions) { o.Name = &name }
+}
+
+// WithEmail sets the customer's email for update.
+func WithEmail(email string) UpdateOption {
+	return func(o *UpdateCustomerOptions) { o.Email = &email }
+}
+
+// WithPhone sets the customer's phone for update.
+func WithPhone(phone string) UpdateOption {
+	return func(o *UpdateCustomerOptions) { o.Phone = &phone }
+}

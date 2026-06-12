@@ -309,6 +309,119 @@ func TestService_List_NetworkError(t *testing.T) {
 	}
 }
 
+func TestService_ListLocations_Success(t *testing.T) {
+	storeLocations := []*StoreLocation{
+		{
+			ID:   "sl_001",
+			Name: "Main Store",
+			Address: &Address{
+				Line1:   "123 Main St",
+				City:    "New York",
+				State:   "NY",
+				Zip:     "10001",
+				Country: "US",
+			},
+			Hours: &Hours{
+				Monday: &DayHours{Open: "09:00", Close: "17:00"},
+				Friday: &DayHours{Open: "09:00", Close: "20:00"},
+			},
+		},
+		{
+			ID:   "sl_002",
+			Name: "Downtown Branch",
+			Address: &Address{
+				Line1:   "456 Market St",
+				City:    "San Francisco",
+				State:   "CA",
+				Zip:     "94102",
+				Country: "US",
+			},
+		},
+	}
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/storefront/v1/store-locations" && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusOK)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(storeLocations)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+
+	client := setupTestClient(t, handler)
+	service := NewService(client)
+
+	ctx := t.Context()
+	result, err := service.ListLocations(ctx)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if len(result) != 2 {
+		t.Errorf("Expected 2 store locations, got %d", len(result))
+	}
+
+	if result[0].ID != "sl_001" {
+		t.Errorf("Expected first location ID sl_001, got %s", result[0].ID)
+	}
+
+	if result[0].Name != "Main Store" {
+		t.Errorf("Expected first location name 'Main Store', got %s", result[0].Name)
+	}
+
+	if result[0].Address == nil {
+		t.Error("Expected first location Address to be non-nil")
+	} else if result[0].Address.City != "New York" {
+		t.Errorf("Expected Address city 'New York', got %s", result[0].Address.City)
+	}
+
+	if result[0].Hours == nil {
+		t.Error("Expected first location Hours to be non-nil")
+	} else if result[0].Hours.Monday == nil {
+		t.Error("Expected Monday hours to be non-nil")
+	} else if result[0].Hours.Monday.Open != "09:00" {
+		t.Errorf("Expected Monday open '09:00', got %s", result[0].Hours.Monday.Open)
+	}
+
+	if result[1].ID != "sl_002" {
+		t.Errorf("Expected second location ID sl_002, got %s", result[1].ID)
+	}
+
+	if result[1].Name != "Downtown Branch" {
+		t.Errorf("Expected second location name 'Downtown Branch', got %s", result[1].Name)
+	}
+}
+
+func TestService_ListLocations_ServerError(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/storefront/v1/store-locations" && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"error": "internal server error"})
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+
+	client := setupTestClient(t, handler)
+	service := NewService(client)
+
+	ctx := t.Context()
+	result, err := service.ListLocations(ctx)
+	if err == nil {
+		t.Fatal("Expected error for server failure, got nil")
+	}
+
+	if result != nil {
+		t.Errorf("Expected nil on error, got: %+v", result)
+	}
+
+	if !strings.Contains(err.Error(), "failed to list store locations") {
+		t.Errorf("Expected error containing 'failed to list store locations', got: %v", err)
+	}
+}
+
 func strPtr(s string) *string {
 	return &s
 }

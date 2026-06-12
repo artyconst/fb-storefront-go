@@ -28,7 +28,7 @@ func TestCheckoutService_Create(t *testing.T) {
 			return
 		}
 
-		var body map[string]interface{}
+		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("Failed to decode request: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
@@ -42,7 +42,7 @@ func TestCheckoutService_Create(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":       "checkout_123",
 			"cart_id":  body["cart_id"],
 			"status":   "pending",
@@ -122,7 +122,7 @@ func TestCheckoutService_Create(t *testing.T) {
 func TestCheckoutService_Get(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":       "checkout_123",
 			"cart_id":  "cart_456",
 			"status":   "processing",
@@ -188,7 +188,7 @@ func TestCheckoutService_UpdateCustomer(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":          "checkout_123",
 			"customer_id": "cust_456",
 			"status":      "pending",
@@ -269,7 +269,7 @@ func TestCheckoutService_ProcessPayment(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":         "checkout_123",
 			"status":     "processing",
 			"payment_id": req.MethodID,
@@ -348,7 +348,7 @@ func TestCheckoutService_ProcessPayment(t *testing.T) {
 func TestCheckoutService_GetDeliveryServiceQuote(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":          "quote_123",
 			"origin":      "warehouse_a",
 			"destination": "store_b",
@@ -413,8 +413,15 @@ func TestCheckoutService_GetDeliveryServiceQuote(t *testing.T) {
 
 func TestCheckoutService_CaptureCheckout(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("Failed to decode request: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":       "checkout_123",
 			"status":   "completed",
 			"order_id": "order_456",
@@ -424,7 +431,7 @@ func TestCheckoutService_CaptureCheckout(t *testing.T) {
 	client := setupTestClient(t, handler)
 	service := NewCheckoutService(client)
 
-	t.Run("success capture checkout", func(t *testing.T) {
+	t.Run("success capture checkout without notes", func(t *testing.T) {
 		checkout, err := service.CaptureCheckout(context.Background(), "")
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
@@ -434,7 +441,42 @@ func TestCheckoutService_CaptureCheckout(t *testing.T) {
 		}
 	})
 
-	t.Run("success capture with token", func(t *testing.T) {
+	t.Run("success capture with token and notes", func(t *testing.T) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Errorf("Failed to decode request: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			// Verify notes were sent in the body
+			if _, ok := body["notes"]; !ok {
+				t.Error("Expected 'notes' field in request body")
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{
+				"id":       "checkout_123",
+				"status":   "completed",
+				"order_id": "order_456",
+			})
+		})
+
+		client := setupTestClient(t, handler)
+		service := NewCheckoutService(client)
+
+		notes := "Deliver to the back door"
+		checkout, err := service.CaptureCheckout(context.Background(), "token_123", WithNotes(notes))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if checkout == nil {
+			t.Fatal("Expected non-nil checkout")
+		}
+	})
+
+	t.Run("success capture with token only", func(t *testing.T) {
 		checkout, err := service.CaptureCheckout(context.Background(), "token_123")
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)

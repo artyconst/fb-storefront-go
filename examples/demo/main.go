@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"log"
 	"os"
@@ -14,7 +15,6 @@ import (
 	categorySDK "github.com/artyconst/fb-storefront-go/pkg/resources/category"
 	checkoutSDK "github.com/artyconst/fb-storefront-go/pkg/resources/checkout"
 	locationSDK "github.com/artyconst/fb-storefront-go/pkg/resources/location"
-	orderSDK "github.com/artyconst/fb-storefront-go/pkg/resources/order"
 	productSDK "github.com/artyconst/fb-storefront-go/pkg/resources/product"
 	storeSDK "github.com/artyconst/fb-storefront-go/pkg/resources/store"
 
@@ -22,8 +22,8 @@ import (
 )
 
 func main() {
-	fmt.Println("Fleetbase Storefront Go SDK - Full Demo")
-	fmt.Println("===========================================")
+	fmt.Println("Fleetbase Storefront Go SDK - End-to-End Shopping Demo")
+	fmt.Println("=======================================================")
 
 	envFile := getEnvFilePath()
 
@@ -39,6 +39,7 @@ func main() {
 	client, err := sf.NewStorefront(apiKey,
 		config.WithAPIHost(os.Getenv("FLEETBASE_HOST")),
 		config.WithLogLevel(config.LevelDebug),
+		config.WithUserAgent("MyApp/1.0"),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -50,152 +51,234 @@ func main() {
 	categoryService := categorySDK.NewCategoryService(client)
 	productService := productSDK.NewProductService(client)
 	checkoutService := checkoutSDK.NewCheckoutService(client)
-	orderService := orderSDK.NewOrderService(client)
 
-	fmt.Println("\n1. Testing GET /about")
-	about, err := storeService.About(context.Background())
+	ctx := context.Background()
+
+	// === Phase 1: Discover Store & Products ===
+	fmt.Println("\n=== Phase 1: Discover Store & Products ===")
+
+	about, err := storeService.About(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("   Store: %s\n", about.Name)
-	fmt.Printf("   ID: %s\n", about.ID)
+	fmt.Printf("   Store: %s (ID: %s)\n", about.Name, about.ID)
 
-	fmt.Println("\n2. Store Search (Search method removed - endpoint not available for store-specific API keys)")
-
-	fmt.Println("\n3. Testing Category Operations with functional options")
-	categories, err := categoryService.List(context.Background(),
-		categorySDK.WithLimit(10),
-	)
+	categories, err := categoryService.List(ctx, categorySDK.WithLimit(10))
 	if err != nil {
 		fmt.Printf("   Note: List categories failed: %v\n", err)
 	} else {
-		fmt.Printf("   Found %d categories\n", len(categories))
+		fmt.Printf("   Found %d categories:\n", len(categories))
 		for _, cat := range categories[:min(len(categories), 3)] {
-			fmt.Printf("     Category ID: %s, Name: %s\n", cat.ID, cat.Name)
+			fmt.Printf("     - %s (ID: %s)\n", cat.Name, cat.ID)
+		}
+		if len(categories) > 3 {
+			fmt.Printf("     ... and %d more\n", len(categories)-3)
 		}
 	}
 
-	fmt.Println("\n4. Testing Product Operations with functional options")
-	products, err := productService.List(context.Background(),
-		productSDK.WithLimit(100),
-		productSDK.WithOffset(0),
-	)
+	products, err := productService.List(ctx, productSDK.WithLimit(10))
 	if err != nil {
-		fmt.Printf("   Note: List products failed: %v\n", err)
+		log.Fatal(fmt.Errorf("failed to list products: %w", err))
+	}
+	fmt.Printf("   Found %d products:\n", len(products))
+	for i, prod := range products[:min(len(products), 5)] {
+		variantsInfo := ""
+		if len(prod.Variants) > 0 {
+			variantNames := make([]string, 0, len(prod.Variants))
+			for _, v := range prod.Variants {
+				opts := make([]string, 0, len(v.Options))
+				for _, o := range v.Options {
+					opts = append(opts, fmt.Sprintf("%s=%s", o.Name, o.Value))
+				}
+				variantNames = append(variantNames, fmt.Sprintf("[%s: %v]", v.Name, strings.Join(opts, ", ")))
+			}
+			variantsInfo = " | Variants: " + strings.Join(variantNames, "; ")
+		}
+		fmt.Printf("     %d. %s (ID: %s) - $%d%s\n", i+1, prod.Name, prod.ID, prod.Price, variantsInfo)
+	}
+
+	if len(products) == 0 {
+		log.Fatal("No products found in the store. Cannot continue with demo.")
+	}
+
+	// === Phase 2: Create Cart & Add Items ===
+	fmt.Println("\n=== Phase 2: Create Cart & Add Items ===")
+
+	cartID := generateUUID()
+	fmt.Printf("   Generated cart ID: %s\n", cartID)
+
+	// Create the cart implicitly via Get (auto-creates if it doesn't exist)
+	cart, err := cartService.Get(ctx, cartID)
+	if err != nil {
+		fmt.Printf("   Note: Get cart failed: %v\n", err)
 	} else {
-		fmt.Printf("   Found %d products (limit 100)\n", len(products))
-		for _, prod := range products[:min(len(products), 3)] {
-			fmt.Printf("     Product ID: %s, Name: %s, Price: $%d\n", prod.ID, prod.Name, prod.Price)
+		fmt.Printf("   Cart created - Status: %s, Items: %d\n", cart.Status, len(cart.Items))
+	}
+
+	// --- Add item 1: Simple add without variants ---
+	if len(products) > 0 {
+		simpleProduct := products[0]
+		fmt.Printf("\n   Adding simple product (no variants): %s x1\n", simpleProduct.Name)
+		cart, err = cartService.AddItem(ctx, cartID, simpleProduct.ID, 1)
+		if err != nil {
+			fmt.Printf("   Note: AddItem failed: %v\n", err)
+		} else {
+			fmt.Printf("   Cart now has %d item(s), Total: $%d (%s)\n", len(cart.Items), cart.TotalAmount, cart.Currency)
 		}
 	}
 
-	if len(categories) > 0 {
-		fmt.Println("\n5. Testing List Products by Category (using functional options)")
-		catProducts, err := productService.List(context.Background(),
-			productSDK.WithCategory(categories[0].ID),
-			productSDK.WithLimit(10),
+	// --- Add item 2: Product with variants (if available) ---
+	variantProduct := findProductWithVariants(products)
+	if variantProduct != nil {
+		fmt.Printf("\n   Adding product with variants: %s x1\n", variantProduct.Name)
+
+		// Build variant options from the first variant's options
+		opts := make([]cartSDK.AddItemOption, 0)
+		for _, opt := range variantProduct.Variants[0].Options {
+			fmt.Printf("     Variant option: %s = %s\n", opt.Name, opt.Value)
+			opts = append(opts, cartSDK.WithVariant(opt.Name, opt.Value))
+		}
+
+		cart, err = cartService.AddItem(ctx, cartID, variantProduct.ID, 1, opts...)
+		if err != nil {
+			fmt.Printf("   Note: AddItem with variants failed: %v\n", err)
+		} else {
+			fmt.Printf("   Cart now has %d item(s), Total: $%d (%s)\n", len(cart.Items), cart.TotalAmount, cart.Currency)
+		}
+	}
+
+	// --- Add item 3: With scheduled time ---
+	if len(products) > 1 {
+		scheduledProduct := products[1]
+		scheduledTime := "2024-12-25T10:00:00Z"
+		fmt.Printf("\n   Adding product with scheduled delivery: %s x2 (scheduled for %s)\n", scheduledProduct.Name, scheduledTime)
+
+		cart, err = cartService.AddItem(ctx, cartID, scheduledProduct.ID, 2,
+			cartSDK.WithScheduledAt(scheduledTime),
 		)
 		if err != nil {
-			fmt.Printf("   Note: List products by category failed: %v\n", err)
+			fmt.Printf("   Note: AddItem with schedule failed: %v\n", err)
 		} else {
-			fmt.Printf("     Found %d products in category %s\n", len(catProducts), categories[0].Name)
+			fmt.Printf("   Cart now has %d item(s), Total: $%d (%s)\n", len(cart.Items), cart.TotalAmount, cart.Currency)
 		}
 	}
 
-	fmt.Println("\n6. Testing GET /gateways with functional options")
-	gateways, err := storeService.ListGateways(context.Background(),
-		storeSDK.WithGatewayLimit(5),
-		storeSDK.WithGatewayOffset(0),
-	)
-	if err != nil {
-		fmt.Printf("   Note: List gateways failed: %v\n", err)
-	} else {
-		fmt.Printf("   Found %d payment gateways\n", len(gateways.Data))
+	// --- Add item 4: With store location (if locations available) ---
+	if len(products) > 2 {
+		locations, err := locService.List(ctx, about.ID)
+		if err != nil || len(locations) == 0 {
+			fmt.Printf("\n   Note: No store locations available to demonstrate WithStoreLocation\n")
+		} else {
+			locationProduct := products[2]
+			storeLocID := locations[0].ID
+			fmt.Printf("\n   Adding product with store location: %s x1 (location: %s)\n", locationProduct.Name, locations[0].Name)
 
-		if len(gateways.Data) > 0 {
-			fmt.Println("\n7. Testing GET /gateways/{id}")
-			gateway, err := storeService.GetGateway(context.Background(), gateways.Data[0].ID)
+			cart, err = cartService.AddItem(ctx, cartID, locationProduct.ID, 1,
+				cartSDK.WithStoreLocation(storeLocID),
+			)
 			if err != nil {
-				fmt.Printf("   Note: Get gateway failed: %v\n", err)
+				fmt.Printf("   Note: AddItem with store location failed: %v\n", err)
 			} else {
-				fmt.Printf("   Gateway: %s (%s)\n", gateway.Name, gateway.Type)
-				fmt.Printf("   Active: %v\n", gateway.IsActive)
+				fmt.Printf("   Cart now has %d item(s), Total: $%d (%s)\n", len(cart.Items), cart.TotalAmount, cart.Currency)
 			}
 		}
 	}
 
-	fmt.Println("\n7.5 Testing Store Locations")
-	fmt.Println("   Note: Locations are fetched via the standalone location service")
+	// === Phase 3: Update Cart Item ===
+	fmt.Println("\n=== Phase 3: Update Cart Item ===")
 
-	locations, err := locService.List(context.Background(), about.ID)
+	cart, err = cartService.Get(ctx, cartID)
 	if err != nil {
-		fmt.Printf("   Note: List locations failed: %v\n", err)
-	} else {
-		fmt.Printf("   Found %d store locations\n", len(locations))
-		for _, loc := range locations[:min(len(locations), 3)] {
-			fmt.Printf("     Location ID: %s, Name: %s\n", loc.ID, loc.Name)
-			if loc.Place != nil {
-				fmt.Printf("       Address: %s\n", loc.Place.Address)
-			}
-		}
-	}
-
-	fmt.Println("\n8. Testing Cart Operations")
-	cartID := "cart_123" // Replace with actual cart ID from your store
-	cart, err := cartService.Get(context.Background(), cartID)
-	if err != nil {
-		fmt.Printf("   Note: Get cart failed (expected if no cart exists): %v\n", err)
-	} else {
-		fmt.Printf("   Cart Status: %s\n", cart.Status)
-		fmt.Printf("   Total: $%d (%s)\n", cart.TotalAmount, cart.Currency)
-		fmt.Printf("   Items:\n")
+		fmt.Printf("   Note: Get cart failed: %v\n", err)
+	} else if len(cart.Items) > 0 {
+		firstItem := cart.Items[0]
+		newQuantity := firstItem.Quantity + 1
+		fmt.Printf("   Current items in cart:\n")
 		for _, item := range cart.Items {
-			fmt.Printf("     - %s x%d ($%d)\n", item.Name, item.Quantity, item.Price)
+			fmt.Printf("     - %s (ID: %s) x%d @ $%d = $%d\n", item.Name, item.ID, item.Quantity, item.Price, item.Total)
 		}
 
-		fmt.Println("\n9. Testing Cart AddItem")
-		addedCart, err := cartService.AddItem(context.Background(), cartID, "prod_123", 1, nil, nil, "", "")
+		fmt.Printf("\n   Updating first item '%s' quantity from %d to %d\n", firstItem.Name, firstItem.Quantity, newQuantity)
+
+		cart, err = cartService.UpdateItem(ctx, cartID, firstItem.ID, newQuantity)
 		if err != nil {
-			fmt.Printf("   Note: AddItem failed (expected): %v\n", err)
+			fmt.Printf("   Note: UpdateItem failed: %v\n", err)
 		} else {
-			fmt.Printf("   Cart now has %d items\n", len(addedCart.Items))
+			fmt.Printf("   Cart updated - Total items: %d, New total: $%d (%s)\n", len(cart.Items), cart.TotalAmount, cart.Currency)
+			for _, item := range cart.Items {
+				fmt.Printf("     - %s x%d @ $%d = $%d\n", item.Name, item.Quantity, item.Price, item.Total)
+			}
+		}
+	}
+
+	// === Phase 4: Checkout Flow ===
+	fmt.Println("\n=== Phase 4: Checkout Flow ===")
+
+	cart, err = cartService.Get(ctx, cartID)
+	if err != nil {
+		fmt.Printf("   Note: Get cart failed before checkout: %v\n", err)
+	} else if len(cart.Items) == 0 {
+		fmt.Println("   Cart is empty, skipping checkout.")
+	} else {
+		fmt.Printf("   Proceeding to checkout with %d item(s), Total: $%d (%s)\n", len(cart.Items), cart.TotalAmount, cart.Currency)
+
+		checkoutReq := checkoutSDK.CreateCheckoutRequest{
+			CustomerEmail: "demo@example.com",
+			ShippingAddress: &checkoutSDK.Address{
+				FirstName:    "Demo",
+				LastName:     "User",
+				AddressLine1: "123 Main St",
+				City:         "Manila",
+				PostalCode:   "1000",
+				Country:      "PH",
+			},
 		}
 
-		fmt.Println("\n10. Testing Cart Clear")
-		err = cartService.Clear(context.Background(), cartID)
+		checkout, err := checkoutService.Create(ctx, cartID, checkoutReq)
 		if err != nil {
-			fmt.Printf("   Note: Clear failed (expected): %v\n", err)
+			fmt.Printf("   Note: Create checkout failed: %v\n", err)
 		} else {
-			fmt.Printf("   Cart cleared successfully\n")
+			fmt.Printf("   Checkout created - ID: %s, Status: %s, Amount: $%d (%s)\n",
+				checkout.ID, checkout.Status, checkout.Amount, checkout.Currency)
+
+			if checkout.ShippingAddress != nil {
+				fmt.Printf("     Shipping to: %s %s, %s\n",
+					checkout.ShippingAddress.FirstName,
+					checkout.ShippingAddress.LastName,
+					checkout.ShippingAddress.City)
+			}
+
+			// Capture the checkout as an order with notes
+			notes := "Demo order from Go SDK"
+			captured, err := checkoutService.CaptureCheckout(ctx, "", checkoutSDK.WithNotes(notes))
+			if err != nil {
+				fmt.Printf("   Note: Capture checkout failed: %v\n", err)
+			} else {
+				fmt.Printf("   Checkout captured - ID: %s, Status: %s\n", captured.ID, captured.Status)
+			}
 		}
 	}
 
-	fmt.Println("\n11. Testing Checkout Operations")
-	fmt.Println("   Note: List capturable checkouts not available in SDK")
+	fmt.Println("\n=== Demo Complete ===")
+	fmt.Println("This demo demonstrated the full shopping flow:")
+	fmt.Println("  1. Browsing store info, categories, and products (with variant details)")
+	fmt.Println("  2. Creating a cart and adding items with various options:")
+	fmt.Println("     - Simple add item (no variants)")
+	fmt.Println("     - Add item with product variants")
+	fmt.Println("     - Add item with scheduled delivery time")
+	fmt.Println("     - Add item with store location")
+	fmt.Println("  3. Updating a cart item quantity")
+	fmt.Println("  4. Creating and capturing a checkout session")
+}
 
-	fmt.Println("\n12. Testing Capture Checkout")
-	captured, err := checkoutService.CaptureCheckout(context.Background(), "")
-	if err != nil {
-		fmt.Printf("   Note: Capture failed (expected): %v\n", err)
-	} else {
-		fmt.Printf("     Captured Checkout ID: %s, Status: %s\n", captured.ID, captured.Status)
-	}
-
-	fmt.Println("\n13. Testing Order Operations with functional options (page-based pagination)")
-	ordersList, err := orderService.List(context.Background(),
-		orderSDK.WithPage(1),
-		orderSDK.WithLimit(10),
-	)
-	if err != nil {
-		fmt.Printf("   Note: List orders returned error (expected if no orders exist): %v\n", err)
-	} else {
-		fmt.Printf("   Found %d orders\n", len(ordersList))
-		for _, ord := range ordersList[:min(len(ordersList), 3)] {
-			fmt.Printf("     Order ID: %s, Status: %s, Total: $%d (%s)\n", ord.ID, ord.Status, ord.TotalAmount, ord.Currency)
+// findProductWithVariants returns the first product that has variants defined, or nil.
+func findProductWithVariants(products []*productSDK.Product) *productSDK.Product {
+	for _, p := range products {
+		if len(p.Variants) > 0 {
+			return p
 		}
 	}
-
-	fmt.Println("\n✓ All SDK operations working correctly!")
+	return nil
 }
 
 func getEnvFilePath() string {
@@ -211,9 +294,13 @@ func getEnvFilePath() string {
 	return "./examples/.env"
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
+// generateUUID returns a random UUID v4 string using crypto/rand.
+func generateUUID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	b[6] = (b[6] & 0x0f) | 0x40 // Version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // Variant RFC 4122
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
+
+

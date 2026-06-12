@@ -10,7 +10,7 @@ import (
 	sf "github.com/artyconst/fb-storefront-go"
 )
 
-func setupTestClient(t *testing.T, endpoint, method string, statusCode int, responseBody interface{}) (*sf.StorefrontClient, func()) {
+func setupTestClient(t *testing.T, endpoint, method string, statusCode int, responseBody any) (*sf.StorefrontClient, func()) {
 	t.Helper()
 
 	responseBytes, err := json.Marshal(responseBody)

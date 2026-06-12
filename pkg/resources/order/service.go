@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	sf "github.com/artyconst/fb-storefront-go"
 )
@@ -48,7 +49,7 @@ func (s *OrderService) List(ctx context.Context, opts ...ListOption) ([]*Order, 
 	}
 
 	if len(queryParts) > 0 {
-		path += "?" + joinStrings(queryParts, "&")
+		path += "?" + strings.Join(queryParts, "&")
 	}
 
 	var result struct {
@@ -71,14 +72,45 @@ func (s *OrderService) Create(ctx context.Context, cartID string) (*Order, error
 	return &order, nil
 }
 
-// joinStrings joins string slice with separator.
-func joinStrings(parts []string, sep string) string {
-	if len(parts) == 0 {
-		return ""
+// MarkPickedUp marks an order as picked up - PUT /orders/picked-up.
+func (s *OrderService) MarkPickedUp(ctx context.Context, orderID string) error {
+	if orderID == "" {
+		return fmt.Errorf("order ID is required")
 	}
-	result := parts[0]
-	for i := 1; i < len(parts); i++ {
-		result += sep + parts[i]
+
+	path := "/orders/picked-up"
+	body := map[string]any{"id": orderID}
+
+	if err := s.client.PutJSON(ctx, path, body, &struct{}{}); err != nil {
+		return fmt.Errorf("failed to mark order as picked up: %w", err)
 	}
-	return result
+	return nil
 }
+
+// GenerateReceipt generates a receipt for an order - POST /orders/receipt.
+func (s *OrderService) GenerateReceipt(ctx context.Context, orderID string, opts ...ReceiptOption) (*Receipt, error) {
+	if orderID == "" {
+		return nil, fmt.Errorf("order ID is required")
+	}
+
+	options := &ReceiptOptions{}
+	for _, o := range opts {
+		o(options)
+	}
+
+	path := "/orders/receipt"
+	body := map[string]any{"id": orderID}
+	if options.EbarimtReceiverType != "" {
+		body["ebarimt_receiver_type"] = options.EbarimtReceiverType
+	}
+	if options.EbarimtReceiver != nil {
+		body["ebarimt_receiver"] = *options.EbarimtReceiver
+	}
+
+	var receipt Receipt
+	if err := s.client.PostJSON(ctx, path, body, &receipt); err != nil {
+		return nil, fmt.Errorf("failed to generate receipt: %w", err)
+	}
+	return &receipt, nil
+}
+

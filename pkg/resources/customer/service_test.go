@@ -36,8 +36,8 @@ func TestCustomerService_ListPlaces(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"items": []map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
+			"items": []map[string]any{
 				{"id": "1", "name": "Place 1"},
 				{"id": "2", "name": "Place 2"},
 			},
@@ -81,8 +81,8 @@ func TestCustomerService_ListOrders(t *testing.T) {
 		limit := queryParams.Get("limit")
 		offset := queryParams.Get("offset")
 
-		response := map[string]interface{}{
-			"items": []map[string]interface{}{
+		response := map[string]any{
+			"items": []map[string]any{
 				{"id": "1", "status": status, "limit": limit, "offset": offset},
 			},
 		}
@@ -248,7 +248,7 @@ func TestCustomerService_Get(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":    "cust_123",
 			"email": "user@example.com",
 		})
@@ -277,4 +277,266 @@ func TestCustomerService_Get_InvalidID(t *testing.T) {
 	if customer != nil {
 		t.Error("Expected nil customer on error")
 	}
+}
+
+func TestCustomerService_LoginWithApple(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		expectedPath := "/storefront/v1/customers/login-with-apple"
+		if r.URL.Path != expectedPath {
+			t.Errorf("Expected path %s, got %s", expectedPath, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("Failed to decode request: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if body["identity_token"] == "" || body["auth_code"] == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields"})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"customer": map[string]any{"id": "cust_apple_123", "email": "apple@example.com"},
+			"token":    "apple_token_xyz",
+		})
+	})
+
+	client := setupTestClient(t, handler)
+	service := NewCustomerService(client)
+
+	t.Run("success with valid tokens", func(t *testing.T) {
+		resp, err := service.LoginWithApple(context.Background(), "identity_token_123", "auth_code_456")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if resp == nil || resp.Customer == nil {
+			t.Fatal("Expected non-nil response with customer")
+		}
+		if resp.Token == "" {
+			t.Error("Expected non-empty token")
+		}
+	})
+
+	t.Run("fails without identity token", func(t *testing.T) {
+		resp, err := service.LoginWithApple(context.Background(), "", "auth_code_456")
+		if err == nil {
+			t.Fatal("Expected error for missing identity token")
+		}
+		if resp != nil {
+			t.Error("Expected nil response on error")
+		}
+	})
+
+	t.Run("fails without auth code", func(t *testing.T) {
+		resp, err := service.LoginWithApple(context.Background(), "identity_token_123", "")
+		if err == nil {
+			t.Fatal("Expected error for missing auth code")
+		}
+		if resp != nil {
+			t.Error("Expected nil response on error")
+		}
+	})
+}
+
+func TestCustomerService_LoginWithGoogle(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		expectedPath := "/storefront/v1/customers/login-with-google"
+		if r.URL.Path != expectedPath {
+			t.Errorf("Expected path %s, got %s", expectedPath, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("Failed to decode request: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if body["id_token"] == "" || body["client_id"] == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields"})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"customer": map[string]any{"id": "cust_google_123", "email": "google@example.com"},
+			"token":    "google_token_xyz",
+		})
+	})
+
+	client := setupTestClient(t, handler)
+	service := NewCustomerService(client)
+
+	t.Run("success with valid tokens", func(t *testing.T) {
+		resp, err := service.LoginWithGoogle(context.Background(), "id_token_123", "client_id_456")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if resp == nil || resp.Customer == nil {
+			t.Fatal("Expected non-nil response with customer")
+		}
+		if resp.Token == "" {
+			t.Error("Expected non-empty token")
+		}
+	})
+
+	t.Run("fails without id token", func(t *testing.T) {
+		resp, err := service.LoginWithGoogle(context.Background(), "", "client_id_456")
+		if err == nil {
+			t.Fatal("Expected error for missing id token")
+		}
+		if resp != nil {
+			t.Error("Expected nil response on error")
+		}
+	})
+
+	t.Run("fails without client ID", func(t *testing.T) {
+		resp, err := service.LoginWithGoogle(context.Background(), "id_token_123", "")
+		if err == nil {
+			t.Fatal("Expected error for missing client ID")
+		}
+		if resp != nil {
+			t.Error("Expected nil response on error")
+		}
+	})
+}
+
+func TestCustomerService_GetStripeEphemeralKey(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		expectedPath := "/storefront/v1/customers/stripe-ephemeral-key"
+		if r.URL.Path != expectedPath {
+			t.Errorf("Expected path %s, got %s", expectedPath, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"ephemeral_key": "ek_test_1234567890abcdef",
+		})
+	})
+
+	client := setupTestClient(t, handler)
+	service := NewCustomerService(client)
+
+	t.Run("success returns ephemeral key", func(t *testing.T) {
+		key, err := service.GetStripeEphemeralKey(context.Background())
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if key == "" {
+			t.Error("Expected non-empty ephemeral key")
+		}
+	})
+}
+
+func TestCustomerService_CreateStripeSetupIntent(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		expectedPath := "/storefront/v1/customers/stripe-setup-intent"
+		if r.URL.Path != expectedPath {
+			t.Errorf("Expected path %s, got %s", expectedPath, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"client_secret": "seti_1234567890_secret",
+			"intent_id":     "seti_1234567890",
+		})
+	})
+
+	client := setupTestClient(t, handler)
+	service := NewCustomerService(client)
+
+	t.Run("success returns setup intent", func(t *testing.T) {
+		intent, err := service.CreateStripeSetupIntent(context.Background())
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if intent == nil {
+			t.Fatal("Expected non-nil setup intent")
+		}
+		if intent.ClientSecret == "" {
+			t.Error("Expected non-empty client secret")
+		}
+	})
+}
+
+func TestCustomerService_Update(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		expectedPath := "/storefront/v1/customers/cust_123"
+		if r.URL.Path != expectedPath {
+			t.Errorf("Expected path %s, got %s", expectedPath, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("Failed to decode request: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":    "cust_123",
+			"name":  body["name"],
+			"email": body["email"],
+		})
+	})
+
+	client := setupTestClient(t, handler)
+	service := NewCustomerService(client)
+
+	t.Run("success with name and email options", func(t *testing.T) {
+		customer, err := service.Update(context.Background(), "cust_123", WithName("John Doe"), WithEmail("john@example.com"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if customer == nil || customer.ID != "cust_123" {
+			t.Fatal("Expected non-nil customer with correct ID")
+		}
+	})
+
+	t.Run("success with all options", func(t *testing.T) {
+		customer, err := service.Update(context.Background(), "cust_123", WithName("Jane"), WithEmail("jane@example.com"), WithPhone("+1234567890"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if customer == nil {
+			t.Fatal("Expected non-nil customer")
+		}
+	})
+
+	t.Run("fails without ID", func(t *testing.T) {
+		customer, err := service.Update(context.Background(), "")
+		if err == nil {
+			t.Fatal("Expected error for empty ID")
+		}
+		if customer != nil {
+			t.Error("Expected nil customer on error")
+		}
+	})
+
+	t.Run("success with no options (empty body)", func(t *testing.T) {
+		customer, err := service.Update(context.Background(), "cust_123")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if customer == nil {
+			t.Fatal("Expected non-nil customer")
+		}
+	})
 }

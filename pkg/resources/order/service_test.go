@@ -24,7 +24,7 @@ func setupTestClient(t *testing.T, handler http.Handler) *sf.StorefrontClient {
 func TestOrderService_Get(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":           "order_123",
 			"order_number": "ORD-001",
 			"status":       "confirmed",
@@ -84,7 +84,7 @@ func TestOrderService_Get(t *testing.T) {
 func TestOrderService_List(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"data": []*Order{
 				{ID: "order_123", OrderNumber: "ORD-001", Status: "confirmed"},
 				{ID: "order_456", OrderNumber: "ORD-002", Status: "processing"},
@@ -165,7 +165,7 @@ func TestOrderService_Create(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":           "order_789",
 			"order_number": "ORD-003",
 			"status":       "confirmed",
@@ -214,6 +214,153 @@ func TestOrderService_Create(t *testing.T) {
 		}
 		if order != nil {
 			t.Error("Expected nil order on error")
+		}
+	})
+}
+
+func TestOrderService_MarkPickedUp(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("Failed to decode request: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if body["id"] == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Order ID required"})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":           body["id"],
+			"status":       "delivered",
+			"order_number": "ORD-001",
+		})
+	})
+
+	client := setupTestClient(t, handler)
+	service := NewOrderService(client)
+
+	t.Run("success mark order as picked up", func(t *testing.T) {
+		err := service.MarkPickedUp(context.Background(), "order_123")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+	})
+
+	t.Run("fails with empty order ID", func(t *testing.T) {
+		err := service.MarkPickedUp(context.Background(), "")
+		if err == nil {
+			t.Fatal("Expected error for empty order ID")
+		}
+	})
+
+	t.Run("fails with server error", func(t *testing.T) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Server error"})
+		})
+		client := setupTestClient(t, handler)
+		service := NewOrderService(client)
+
+		err := service.MarkPickedUp(context.Background(), "order_123")
+		if err == nil {
+			t.Fatal("Expected error for server failure")
+		}
+	})
+}
+
+func TestOrderService_GenerateReceipt(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("Failed to decode request: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if body["id"] == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Order ID required"})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"order_id": body["id"],
+			"content":  "receipt content here",
+		})
+	})
+
+	client := setupTestClient(t, handler)
+	service := NewOrderService(client)
+
+	t.Run("success generate receipt", func(t *testing.T) {
+		receipt, err := service.GenerateReceipt(context.Background(), "order_123")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if receipt == nil {
+			t.Fatal("Expected non-nil receipt")
+		}
+		if receipt.OrderID != "order_123" {
+			t.Errorf("Expected OrderID 'order_123', got '%s'", receipt.OrderID)
+		}
+		if receipt.Content != "receipt content here" {
+			t.Errorf("Expected Content 'receipt content here', got '%s'", receipt.Content)
+		}
+	})
+
+	t.Run("success generate receipt with ebarimt options", func(t *testing.T) {
+		receipt, err := service.GenerateReceipt(context.Background(), "order_123",
+			WithEbarimtReceiverType("COMPANY"),
+			WithEbarimtReceiver("1234567890"),
+		)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if receipt == nil {
+			t.Fatal("Expected non-nil receipt")
+		}
+	})
+
+	t.Run("fails with empty order ID", func(t *testing.T) {
+		receipt, err := service.GenerateReceipt(context.Background(), "")
+		if err == nil {
+			t.Fatal("Expected error for empty order ID")
+		}
+		if receipt != nil {
+			t.Error("Expected nil receipt on error")
+		}
+	})
+
+	t.Run("fails with server error", func(t *testing.T) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Server error"})
+		})
+		client := setupTestClient(t, handler)
+		service := NewOrderService(client)
+
+		receipt, err := service.GenerateReceipt(context.Background(), "order_123")
+		if err == nil {
+			t.Fatal("Expected error for server failure")
+		}
+		if receipt != nil {
+			t.Error("Expected nil receipt on error")
 		}
 	})
 }

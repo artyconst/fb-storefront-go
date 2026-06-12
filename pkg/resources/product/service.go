@@ -68,3 +68,40 @@ func (s *ProductService) Get(ctx context.Context, id string) (*Product, error) {
 	}
 	return &product, nil
 }
+
+// Create creates a new product - POST /products.
+func (s *ProductService) Create(ctx context.Context, opts ...CreateOption) (*Product, error) {
+	options := &CreateProductOptions{}
+	for _, o := range opts {
+		o(options)
+	}
+
+	if options.Name == "" {
+		return nil, fmt.Errorf("product name is required")
+	}
+
+	var product Product
+	if err := s.client.PostJSON(ctx, "/products", options, &product); err != nil {
+		return nil, fmt.Errorf("failed to create product: %w", err)
+	}
+	return &product, nil
+}
+
+// Update updates an existing product - PUT /products/{id}.
+func (s *ProductService) Update(ctx context.Context, id string, opts ...UpdateOption) (*Product, error) {
+	if id == "" {
+		return nil, fmt.Errorf("product ID is required")
+	}
+
+	options := &UpdateProductOptions{}
+	for _, o := range opts {
+		o(options)
+	}
+
+	var product Product
+	endpoint := "/products/" + id
+	if err := s.client.PutJSON(ctx, endpoint, options, &product); err != nil {
+		return nil, fmt.Errorf("failed to update product: %w", err)
+	}
+	return &product, nil
+}

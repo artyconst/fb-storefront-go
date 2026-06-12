@@ -29,7 +29,7 @@ func (sl *StdLogger) shouldLog(level sf.LogLevel) bool {
 	return int(level) >= int(sl.level)
 }
 
-func (sl *StdLogger) print(level sf.LogLevel, format string, v ...interface{}) {
+func (sl *StdLogger) print(level sf.LogLevel, format string, v ...any) {
 	if !sl.shouldLog(level) {
 		return
 	}
@@ -37,46 +37,46 @@ func (sl *StdLogger) print(level sf.LogLevel, format string, v ...interface{}) {
 	sl.logger.Output(2, fmt.Sprintf("%s %s", prefix, fmt.Sprintf(format, v...)))
 }
 
-func (sl *StdLogger) Error(v ...interface{}) {
+func (sl *StdLogger) Error(v ...any) {
 	if sl.shouldLog(sf.LevelError) {
 		sl.logger.Println(v...)
 	}
 }
 
-func (sl *StdLogger) Errorf(format string, v ...interface{}) {
+func (sl *StdLogger) Errorf(format string, v ...any) {
 	sl.print(sf.LevelError, format, v...)
 }
 
-func (sl *StdLogger) Warn(v ...interface{}) {
+func (sl *StdLogger) Warn(v ...any) {
 	if sl.shouldLog(sf.LevelWarn) {
 		prefix := fmt.Sprintf("[%s]", sf.LevelWarn.String())
 		sl.logger.Output(2, fmt.Sprintf("%s %v", prefix, v))
 	}
 }
 
-func (sl *StdLogger) Warnf(format string, v ...interface{}) {
+func (sl *StdLogger) Warnf(format string, v ...any) {
 	sl.print(sf.LevelWarn, format, v...)
 }
 
-func (sl *StdLogger) Info(v ...interface{}) {
+func (sl *StdLogger) Info(v ...any) {
 	if sl.shouldLog(sf.LevelInfo) {
 		prefix := fmt.Sprintf("[%s]", sf.LevelInfo.String())
 		sl.logger.Output(2, fmt.Sprintf("%s %v", prefix, v))
 	}
 }
 
-func (sl *StdLogger) Infof(format string, v ...interface{}) {
+func (sl *StdLogger) Infof(format string, v ...any) {
 	sl.print(sf.LevelInfo, format, v...)
 }
 
-func (sl *StdLogger) Debug(v ...interface{}) {
+func (sl *StdLogger) Debug(v ...any) {
 	if sl.shouldLog(sf.LevelDebug) {
 		prefix := fmt.Sprintf("[%s]", sf.LevelDebug.String())
 		sl.logger.Output(2, fmt.Sprintf("%s %v", prefix, v))
 	}
 }
 
-func (sl *StdLogger) Debugf(format string, v ...interface{}) {
+func (sl *StdLogger) Debugf(format string, v ...any) {
 	sl.print(sf.LevelDebug, format, v...)
 }
 
@@ -103,7 +103,7 @@ func NewRawResponseLogger(logger *StdLogger, config *sf.LoggingConfig) *RawRespo
 }
 
 // LogRequest logs the raw HTTP request details.
-func (r *RawResponseLogger) LogRequest(method, url string, body interface{}) {
+func (r *RawResponseLogger) LogRequest(method, url string, body any) {
 	if !r.enableRequestBody && method != http.MethodGet {
 		r.logger.Debug("REQUEST: %s %s", method, url)
 		return
@@ -124,7 +124,7 @@ func (r *RawResponseLogger) LogResponse(statusCode int, body []byte) {
 }
 
 // logBody logs a JSON body with proper formatting.
-func (r *RawResponseLogger) logBody(label string, data interface{}, indent string) {
+func (r *RawResponseLogger) logBody(label string, data any, indent string) {
 	var formatted string
 
 	if s, ok := data.(string); ok {

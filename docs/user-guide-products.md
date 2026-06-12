@@ -182,6 +182,56 @@ func handleProductErrors() {
 }
 ```
 
+## Product Write Operations
+
+### Create (Create a new product using functional options)
+
+```go
+// Create a new product with required fields
+product, err := service.Create(ctx, 
+    productSDK.WithProductName("Premium Widget"),
+    productSDK.WithPrice(2999), // $29.99 in cents
+)
+if err != nil {
+    log.Fatalf("Failed to create product: %v", err)
+}
+fmt.Printf("Created product: %s (ID: %s)\n", product.Name, product.ID)
+
+// Create with optional fields
+product, err = service.Create(ctx, 
+    productSDK.WithProductName("Premium Widget"),
+    productSDK.WithPrice(2999),
+    productSDK.WithDescription("A high-quality widget for all occasions"),
+    productSDK.WithCategoryID("cat_01J..."),
+)
+if err != nil {
+    log.Fatalf("Failed to create product: %v", err)
+}
+```
+
+### Update (Update an existing product using functional options)
+
+```go
+// Update the price of a product
+product, err := service.Update(ctx, "prod_01J...", 
+    productSDK.WithUpdatePrice(3499), // $34.99 in cents
+)
+if err != nil {
+    log.Fatalf("Failed to update product: %v", err)
+}
+fmt.Printf("Updated price to: %d\n", product.Price)
+
+// Update multiple fields at once
+product, err = service.Update(ctx, "prod_01J...", 
+    productSDK.WithUpdateName("Premium Widget Pro"),
+    productSDK.WithUpdatePrice(3499),
+    productSDK.WithUpdateDescription("The upgraded version of our best-selling widget"),
+)
+if err != nil {
+    log.Fatalf("Failed to update product: %v", err)
+}
+```
+
 #### Complete Example with Context Timeout
 
 ```go

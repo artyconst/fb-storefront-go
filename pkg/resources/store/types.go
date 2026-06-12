@@ -16,7 +16,7 @@ type AboutStoreResponse struct {
 	ID           string        `json:"id"`
 	Name         string        `json:"name"`
 	Description  string        `json:"description,omitempty"`
-	Translations []interface{} `json:"translations,omitempty"`
+	Translations []any `json:"translations,omitempty"`
 	Website      *string       `json:"website,omitempty"`
 	Facebook     *string       `json:"facebook,omitempty"`
 	Instagram    *string       `json:"instagram,omitempty"`
@@ -45,7 +45,7 @@ type PaymentGateway struct {
 	Name          string                 `json:"name"`
 	Type          string                 `json:"type"`
 	IsActive      bool                   `json:"is_active"`
-	Configuration map[string]interface{} `json:"configuration,omitempty"`
+	Configuration map[string]any `json:"configuration,omitempty"`
 	CreatedAt     time.Time              `json:"created_at"`
 	UpdatedAt     time.Time              `json:"updated_at"`
 }

@@ -35,10 +35,28 @@ go run main.go
 
 #### Customer Authentication Example
 
-Demonstrates customer authentication flows (login, registration, token handling):
+Demonstrates basic customer authentication flows (login, registration, token handling):
 
 ```bash
 cd customer_auth
+go run main.go
+```
+
+#### New Features Example
+
+Demonstrates all recently added SDK methods across every resource domain:
+
+- **Food Trucks** — List and retrieve food truck details
+- **Store Locations** — Browse store locations and working hours
+- **Cart Mutations** — AddProduct, UpdateLineItem, RemoveLineItem, EmptyCart, DeleteCart (functional options)
+- **Checkout New Methods** — Initialize (preview), Status, CaptureQPay
+- **Review CRUD** — Create, Get, List, and Delete reviews
+- **Order Fulfillment** — MarkPickedUp, GenerateReceipt
+- **Customer Advanced Features** — Facebook OAuth login, Stripe ephemeral keys & setup intents, phone verification, account closure, customer update (functional options)
+- **Product Write Operations** — Create and Update products (functional options)
+
+```bash
+cd new_features
 go run main.go
 ```
 

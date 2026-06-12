@@ -84,7 +84,7 @@ func TestCategoryService_List(t *testing.T) {
 func TestCategoryService_Get(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":    "cat_123",
 			"name":  "Electronics",
 			"count": 42,

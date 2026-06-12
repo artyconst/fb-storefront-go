@@ -66,3 +66,28 @@ type ListOptions struct {
 	Limit  int         `json:"limit,omitempty"`
 	Status OrderStatus `json:"status,omitempty"`
 }
+
+// ReceiptOptions contains parameters for generating a receipt.
+type ReceiptOptions struct {
+	EbarimtReceiverType string  `json:"ebarimt_receiver_type,omitempty"` // CITIZEN or COMPANY
+	EbarimtReceiver     *string `json:"ebarimt_receiver,omitempty"`      // Company reg number
+}
+
+// ReceiptOption is a functional option for GenerateReceipt operations.
+type ReceiptOption func(*ReceiptOptions)
+
+// WithEbarimtReceiverType sets the ebarimt receiver type (CITIZEN or COMPANY).
+func WithEbarimtReceiverType(receiverType string) ReceiptOption {
+	return func(o *ReceiptOptions) { o.EbarimtReceiverType = receiverType }
+}
+
+// WithEbarimtReceiver sets the ebarimt receiver company registration number.
+func WithEbarimtReceiver(receiver string) ReceiptOption {
+	return func(o *ReceiptOptions) { o.EbarimtReceiver = &receiver }
+}
+
+// Receipt represents a generated receipt for an order.
+type Receipt struct {
+	OrderID string `json:"order_id"`
+	Content string `json:"content"`
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	sf "github.com/artyconst/fb-storefront-go"
@@ -23,14 +24,13 @@ func setupTestClient(t *testing.T, handler http.Handler) *sf.StorefrontClient {
 
 func TestCartService_Get(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/storefront/v1/carts/cart_123" {
-			t.Errorf("Unexpected path: %s", r.URL.Path)
+		if r.URL.Path != "/storefront/v1/cart/cart_123" {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":           "cart_123",
 			"status":       "active",
 			"total_amount": 999,
@@ -79,84 +79,18 @@ func TestCartService_Get(t *testing.T) {
 	})
 }
 
-func TestCartService_Create(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-
-		var body map[string]string
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Errorf("Failed to decode request: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		if body["customer_id"] == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Customer ID required"})
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"id":           "cart_456",
-			"customer_id":  body["customer_id"],
-			"status":       "active",
-			"total_amount": 0,
-			"currency":     "USD",
-		})
-	})
-
-	client := setupTestClient(t, handler)
-	service := NewCartService(client)
-
-	t.Run("success create cart", func(t *testing.T) {
-		cart, err := service.Create(context.Background(), "cust_123")
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
-		if cart == nil {
-			t.Fatal("Expected non-nil cart")
-		}
-		if cart.ID != "cart_456" {
-			t.Errorf("Expected cart ID 'cart_456', got '%s'", cart.ID)
-		}
-	})
-
-	t.Run("fails with empty customer id", func(t *testing.T) {
-		cart, err := service.Create(context.Background(), "")
-		if err == nil {
-			t.Fatal("Expected error for empty customer ID")
-		}
-		if cart != nil {
-			t.Error("Expected nil cart on error")
-		}
-	})
-
-	t.Run("fails with server error", func(t *testing.T) {
-		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Server error"})
-		})
-		client := setupTestClient(t, handler)
-		service := NewCartService(client)
-
-		cart, err := service.Create(context.Background(), "cust_123")
-		if err == nil {
-			t.Fatal("Expected error for server failure")
-		}
-		if cart != nil {
-			t.Error("Expected nil cart on error")
-		}
-	})
-}
-
 func TestCartService_AddItem(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Validate product ID is present in the URL path (e.g., /cart/cart_123/prod_456)
+		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/storefront/v1"), "/")
+		if len(pathParts) < 4 || pathParts[3] == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid product ID"})
 			return
 		}
 
@@ -167,14 +101,14 @@ func TestCartService_AddItem(t *testing.T) {
 			return
 		}
 
-		if body.ProductID == "" || body.Quantity <= 0 {
+		if body.Quantity <= 0 {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid product or quantity"})
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid quantity"})
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":           "cart_789",
 			"status":       "active",
 			"total_amount": 1500,
@@ -187,7 +121,7 @@ func TestCartService_AddItem(t *testing.T) {
 	service := NewCartService(client)
 
 	t.Run("success add item", func(t *testing.T) {
-		cart, err := service.AddItem(context.Background(), "cart_123", "prod_456", 2, nil, nil, "", "")
+		cart, err := service.AddItem(context.Background(), "cart_123", "prod_456", 2)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -197,7 +131,7 @@ func TestCartService_AddItem(t *testing.T) {
 	})
 
 	t.Run("fails with invalid product id", func(t *testing.T) {
-		cart, err := service.AddItem(context.Background(), "cart_123", "", 2, nil, nil, "", "")
+		cart, err := service.AddItem(context.Background(), "cart_123", "", 2)
 		if err == nil {
 			t.Fatal("Expected error for empty product ID")
 		}
@@ -207,7 +141,7 @@ func TestCartService_AddItem(t *testing.T) {
 	})
 
 	t.Run("fails with invalid quantity", func(t *testing.T) {
-		cart, err := service.AddItem(context.Background(), "cart_123", "prod_456", 0, nil, nil, "", "")
+		cart, err := service.AddItem(context.Background(), "cart_123", "prod_456", 0)
 		if err == nil {
 			t.Fatal("Expected error for zero quantity")
 		}
@@ -224,7 +158,7 @@ func TestCartService_AddItem(t *testing.T) {
 		client := setupTestClient(t, handler)
 		service := NewCartService(client)
 
-		cart, err := service.AddItem(context.Background(), "cart_123", "prod_456", 2, nil, nil, "", "")
+		cart, err := service.AddItem(context.Background(), "cart_123", "prod_456", 2)
 		if err == nil {
 			t.Fatal("Expected error for server failure")
 		}
@@ -241,7 +175,7 @@ func TestCartService_UpdateItem(t *testing.T) {
 			return
 		}
 
-		var body map[string]interface{}
+		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("Failed to decode request: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
@@ -256,7 +190,7 @@ func TestCartService_UpdateItem(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":           "cart_789",
 			"status":       "active",
 			"total_amount": 3000,
@@ -269,7 +203,7 @@ func TestCartService_UpdateItem(t *testing.T) {
 	service := NewCartService(client)
 
 	t.Run("success update item", func(t *testing.T) {
-		cart, err := service.UpdateItem(context.Background(), "cart_123", "line_item_1", 5, nil, nil)
+		cart, err := service.UpdateItem(context.Background(), "cart_123", "line_item_1", 5)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -279,14 +213,14 @@ func TestCartService_UpdateItem(t *testing.T) {
 	})
 
 	t.Run("sends request with empty line item id", func(t *testing.T) {
-		_, err := service.UpdateItem(context.Background(), "cart_123", "", 5, nil, nil)
+		_, err := service.UpdateItem(context.Background(), "cart_123", "", 5)
 		if err != nil {
 			t.Logf("Client accepted request (validation is server-side): %v", err)
 		}
 	})
 
 	t.Run("fails with invalid quantity", func(t *testing.T) {
-		cart, err := service.UpdateItem(context.Background(), "cart_123", "line_item_1", 0, nil, nil)
+		cart, err := service.UpdateItem(context.Background(), "cart_123", "line_item_1", 0)
 		if err == nil {
 			t.Fatal("Expected error for zero quantity")
 		}
@@ -303,7 +237,7 @@ func TestCartService_UpdateItem(t *testing.T) {
 		client := setupTestClient(t, handler)
 		service := NewCartService(client)
 
-		cart, err := service.UpdateItem(context.Background(), "cart_123", "line_item_1", 5, nil, nil)
+		cart, err := service.UpdateItem(context.Background(), "cart_123", "line_item_1", 5)
 		if err == nil {
 			t.Fatal("Expected error for server failure")
 		}
@@ -321,7 +255,7 @@ func TestCartService_RemoveItem(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":           "cart_789",
 			"status":       "active",
 			"total_amount": 1500,
@@ -378,8 +312,7 @@ func TestCartService_Clear(t *testing.T) {
 			return
 		}
 
-		if r.URL.Path != "/storefront/v1/carts/cart_123/empty" {
-			t.Errorf("Unexpected path: %s", r.URL.Path)
+		if r.URL.Path != "/storefront/v1/cart/cart_123/empty" {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
@@ -427,6 +360,14 @@ func TestCartService_Checkout(t *testing.T) {
 			return
 		}
 
+		// Validate cart ID is present in the URL path (e.g., /cart/cart_123/checkout)
+		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/storefront/v1"), "/")
+		if len(pathParts) < 3 || pathParts[2] == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid cart ID"})
+			return
+		}
+
 		var req CheckoutRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Errorf("Failed to decode request: %v", err)
@@ -435,7 +376,7 @@ func TestCartService_Checkout(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":           "order_123",
 			"order_number": "ORD-001",
 			"status":       "confirmed",

@@ -84,7 +84,7 @@ func TestProductService_List(t *testing.T) {
 func TestProductService_Get(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"id":          "prod_123",
 			"name":        "Widget",
 			"description": "A useful widget",
@@ -200,6 +200,147 @@ func TestProductService_ListWithOptions(t *testing.T) {
 		}
 		if len(products) != 2 {
 			t.Errorf("Expected 2 products, got %d", len(products))
+		}
+	})
+}
+
+func TestProductService_Create(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":    "prod_new_123",
+			"name":  "New Product",
+			"price": 499,
+		})
+	})
+
+	client := setupTestClient(t, handler)
+	service := NewProductService(client)
+
+	t.Run("success create product with name and price", func(t *testing.T) {
+		product, err := service.Create(t.Context(), WithProductName("New Product"), WithPrice(499))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if product == nil {
+			t.Fatal("Expected non-nil product")
+		}
+		if product.ID != "prod_new_123" {
+			t.Errorf("Expected ID 'prod_new_123', got '%s'", product.ID)
+		}
+	})
+
+	t.Run("success create product with all options", func(t *testing.T) {
+		product, err := service.Create(t.Context(),
+			WithProductName("Full Product"),
+			WithDescription("A full product description"),
+			WithSKU("SKU-001"),
+			WithPrice(999),
+			WithSalePrice(799),
+			WithCurrency("USD"),
+			WithTags([]string{"sale", "new"}),
+		)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if product == nil {
+			t.Fatal("Expected non-nil product")
+		}
+	})
+
+	t.Run("fails with empty name", func(t *testing.T) {
+		product, err := service.Create(t.Context(), WithPrice(499))
+		if err == nil {
+			t.Fatal("Expected error for empty name")
+		}
+		if product != nil {
+			t.Error("Expected nil product on error")
+		}
+	})
+
+	t.Run("fails with server error", func(t *testing.T) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Server error"})
+		})
+		client := setupTestClient(t, handler)
+		service := NewProductService(client)
+
+		product, err := service.Create(t.Context(), WithProductName("Bad Product"), WithPrice(499))
+		if err == nil {
+			t.Fatal("Expected error for server failure")
+		}
+		if product != nil {
+			t.Error("Expected nil product on error")
+		}
+	})
+}
+
+func TestProductService_Update(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":    "prod_123",
+			"name":  "Updated Product",
+			"price": 599,
+		})
+	})
+
+	client := setupTestClient(t, handler)
+	service := NewProductService(client)
+
+	t.Run("success update product name", func(t *testing.T) {
+		product, err := service.Update(t.Context(), "prod_123", WithUpdatedName("Updated Product"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if product == nil {
+			t.Fatal("Expected non-nil product")
+		}
+		if product.ID != "prod_123" {
+			t.Errorf("Expected ID 'prod_123', got '%s'", product.ID)
+		}
+	})
+
+	t.Run("success update product with multiple options", func(t *testing.T) {
+		product, err := service.Update(t.Context(), "prod_123",
+			WithUpdatedName("Updated Product"),
+			WithUpdatedPrice(599),
+			WithUpdatedSalePrice(499),
+			WithUpdatedCurrency("EUR"),
+		)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if product == nil {
+			t.Fatal("Expected non-nil product")
+		}
+	})
+
+	t.Run("fails with empty id", func(t *testing.T) {
+		product, err := service.Update(t.Context(), "", WithUpdatedName("No ID"))
+		if err == nil {
+			t.Fatal("Expected error for empty ID")
+		}
+		if product != nil {
+			t.Error("Expected nil product on error")
+		}
+	})
+
+	t.Run("fails with server error", func(t *testing.T) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Server error"})
+		})
+		client := setupTestClient(t, handler)
+		service := NewProductService(client)
+
+		product, err := service.Update(t.Context(), "prod_123", WithUpdatedName("Bad Update"))
+		if err == nil {
+			t.Fatal("Expected error for server failure")
+		}
+		if product != nil {
+			t.Error("Expected nil product on error")
 		}
 	})
 }

@@ -184,7 +184,7 @@ func (c *StorefrontClient) doRequest(ctx context.Context, method, endpoint strin
 }
 
 // GetJSON performs GET request and unmarshals JSON response.
-func (c *StorefrontClient) GetJSON(ctx context.Context, endpoint string, v interface{}, opts ...RequestOption) error {
+func (c *StorefrontClient) GetJSON(ctx context.Context, endpoint string, v any, opts ...RequestOption) error {
 	resp, err := c.doRequest(ctx, http.MethodGet, endpoint, nil, opts...)
 	if err != nil {
 		return err
@@ -219,7 +219,7 @@ func (c *StorefrontClient) GetJSON(ctx context.Context, endpoint string, v inter
 }
 
 // PostJSON performs POST request with JSON body and unmarshals response.
-func (c *StorefrontClient) PostJSON(ctx context.Context, endpoint string, data interface{}, v interface{}, opts ...RequestOption) error {
+func (c *StorefrontClient) PostJSON(ctx context.Context, endpoint string, data any, v any, opts ...RequestOption) error {
 	bodyBytes, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal request: %w", err)
@@ -259,7 +259,7 @@ func (c *StorefrontClient) PostJSON(ctx context.Context, endpoint string, data i
 }
 
 // PutJSON performs PUT request with JSON body and unmarshals response.
-func (c *StorefrontClient) PutJSON(ctx context.Context, endpoint string, data interface{}, v interface{}, opts ...RequestOption) error {
+func (c *StorefrontClient) PutJSON(ctx context.Context, endpoint string, data any, v any, opts ...RequestOption) error {
 	bodyBytes, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal request: %w", err)
@@ -299,7 +299,7 @@ func (c *StorefrontClient) PutJSON(ctx context.Context, endpoint string, data in
 }
 
 // DeleteJSON performs DELETE request and unmarshals JSON response.
-func (c *StorefrontClient) DeleteJSON(ctx context.Context, endpoint string, v interface{}, opts ...RequestOption) error {
+func (c *StorefrontClient) DeleteJSON(ctx context.Context, endpoint string, v any, opts ...RequestOption) error {
 	resp, err := c.doRequest(ctx, http.MethodDelete, endpoint, nil, opts...)
 	if err != nil {
 		return err

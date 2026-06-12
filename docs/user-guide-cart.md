@@ -39,34 +39,27 @@ func getCart() {
 }
 ```
 
-#### Create New Cart
+#### Cart Creation (Implicit via Get)
 
-Create a new empty cart associated with a customer:
+Carts are created implicitly when you call `Get()` with a cart identifier. If no cart exists for that ID, the server creates one automatically. There is no explicit `Create` method — this matches the Fleetbase Storefront API design where carts are identified by any unique string (e.g., device ID, session token).
 
 ```go
-func createCart() {
+func getOrCreateCart() {
     sf, err := storefront.NewStorefront(YOUR_API_KEY)
     if err != nil {
         log.Fatal(err)
     }
 
-    // Create cart for existing customer
-    cart, err := sf.Cart().Create(context.Background(), "cust_12345")
+    // Get cart — creates one implicitly if it doesn't exist for this ID
+    cart, err := sf.Cart().Get(context.Background(), "cart_abc123")
     if err != nil {
         log.Fatal(err)
     }
 
-    fmt.Printf("Created cart: %s\n", cart.ID)
-    fmt.Printf("Customer ID: %s\n", *cart.CustomerID)
+    fmt.Printf("Cart ID: %s\n", cart.ID)
     fmt.Printf("Status: %s\n", cart.Status)
 }
 ```
-
-**Create Parameters:**
-
-| Parameter | Type | Description | Required |
-|-----------|------|-------------|----------|
-| `customerID` | string | Customer ID to associate with cart | Yes |
 
 #### Add Item to Cart
 
@@ -97,7 +90,7 @@ func addToCart() {
 | `productID` | string | Product identifier to add | Yes |
 | `quantity` | int | Number of units to add | Yes |
 | `addons` | []interface{} | Product addons (optional) | No |
-| `variants` | []map[string]any | Product variants (optional) | No |
+| `variants` | map[string]any | Product variants (optional) | No |
 | `scheduledAt` | string | Scheduled delivery time (optional) | No |
 | `storeLocation` | string | Store location identifier (optional) | No |
 
@@ -131,7 +124,7 @@ func updateItem() {
 | `lineItemID` | string | Cart item ID to update | Yes |
 | `quantity` | int | New quantity (must be >= 1) | Yes |
 | `addons` | []interface{} | Product addons (optional) | No |
-| `variants` | []map[string]any | Product variants (optional) | No |
+| `variants` | map[string]any | Product variants (optional) | No |
 
 #### Remove Item from Cart
 
@@ -281,6 +274,147 @@ const (
 )
 ```
 
+#### Cart Mutations (Functional Options)
+
+The cart service provides a set of mutation methods that use the functional options pattern. These are parallel implementations to the existing methods, offering more flexibility through optional parameters passed as functions rather than positional arguments.
+
+##### AddProduct
+
+Add a product using functional options instead of positional parameters:
+
+```go
+func addProductWithOptions() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Add a product using functional options
+    cart, err := sf.Cart().AddProduct(context.Background(), "cart_abc123", "prod_01J...",
+        cart.WithQuantity(2),
+        cart.WithVariant("color", "red"),
+    )
+    if err != nil {
+        log.Fatalf("Failed to add product: %v", err)
+    }
+
+    fmt.Printf("Cart total items: %d\n", len(cart.Items))
+}
+```
+
+**Available AddProduct Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `WithQuantity(int64)` | int64 | Number of units to add |
+| `WithVariant(string, any)` | key-value pair | Product variant (can be called multiple times) |
+| `WithScheduledAt(string)` | string | Scheduled delivery time |
+| `WithStoreLocation(string)` | string | Store location identifier |
+
+##### UpdateLineItem
+
+Update a line item using functional options instead of a quantity parameter:
+
+```go
+func updateLineItemWithOptions() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Update a line item using functional options
+    cart, err := sf.Cart().UpdateLineItem(context.Background(), "cart_abc123", "line_01J...",
+        cart.WithQuantityForUpdate(5),
+    )
+    if err != nil {
+        log.Fatalf("Failed to update line item: %v", err)
+    }
+
+    fmt.Printf("Updated total: $%d\n", cart.TotalAmount)
+}
+```
+
+**Available UpdateLineItem Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `WithQuantityForUpdate(int64)` | int64 | New quantity (must be >= 1) |
+| `WithVariantForUpdate(string, any)` | key-value pair | Product variant update (can be called multiple times) |
+
+##### RemoveLineItem
+
+Remove a line item — returns the updated cart:
+
+```go
+func removeLineItem() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Remove a line item — returns the updated cart
+    cart, err := sf.Cart().RemoveLineItem(context.Background(), "cart_abc123", "line_01J...")
+    if err != nil {
+        log.Fatalf("Failed to remove line item: %v", err)
+    }
+
+    fmt.Printf("Cart now has %d items\n", len(cart.Items))
+}
+```
+
+##### EmptyCart
+
+Empty the cart — returns the updated cart with zero items:
+
+```go
+func emptyCart() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Empty the cart — returns the updated cart with zero items
+    cart, err := sf.Cart().EmptyCart(context.Background(), "cart_abc123")
+    if err != nil {
+        log.Fatalf("Failed to empty cart: %v", err)
+    }
+
+    fmt.Printf("Cart emptied: %d items remaining\n", len(cart.Items))
+}
+```
+
+##### DeleteCart
+
+Permanently delete the entire cart from the server:
+
+```go
+func deleteCart() {
+    sf, err := storefront.NewStorefront(YOUR_API_KEY)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Permanently delete the cart from the server
+    err := sf.Cart().DeleteCart(context.Background())
+    if err != nil {
+        log.Fatalf("Failed to delete cart: %v", err)
+    }
+
+    fmt.Println("Cart deleted")
+}
+```
+
+##### Old vs. New Method Comparison
+
+The following table compares the original methods with their functional-options counterparts, so you can choose which API style fits your use case:
+
+| Old Method | New Method | Key Difference |
+|---|---|---|
+| `AddItem(ctx, cartID, productID, quantity)` | `AddProduct(ctx, cartID, productID, opts...)` | Quantity via option instead of parameter |
+| `UpdateItem(ctx, cartID, lineItemID, quantity)` | `UpdateLineItem(ctx, cartID, lineItemID, opts...)` | Quantity via option instead of parameter |
+| `RemoveItem(ctx, cartID, lineItemID) (*Cart, error)` | `RemoveLineItem(ctx, cartID, lineItemID) (*Cart, error)` | Input validation; returns updated cart |
+| `Clear(ctx, cartID) error` | `EmptyCart(ctx, cartID) (*Cart, error)` | Returns updated cart instead of just error |
+
 #### Complete Cart Workflow Example
 
 ```go
@@ -290,12 +424,12 @@ func completeCartWorkflow() {
         log.Fatal(err)
     }
 
-    // Step 1: Create new cart for customer
-    cart, err := sf.Cart().Create(context.Background(), "cust_12345")
+    // Step 1: Get or create cart (creates implicitly if it doesn't exist)
+    cart, err := sf.Cart().Get(context.Background(), "cart_abc123")
     if err != nil {
         log.Fatal(err)
     }
-    fmt.Printf("Created cart: %s\n", cart.ID)
+    fmt.Printf("Cart ID: %s\n", cart.ID)
 
     // Step 2: Add first product
     cart, err = sf.Cart().AddItem(context.Background(), cart.ID, "prod_wireless_headphones", 1, nil, nil, "", "")

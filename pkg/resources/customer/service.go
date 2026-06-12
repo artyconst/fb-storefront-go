@@ -42,7 +42,7 @@ func (s *CustomerService) Create(ctx context.Context, req CustomerCreateRequest)
 		Title    *string                `json:"title,omitempty"`
 		Email    *string                `json:"email,omitempty"`
 		Phone    *string                `json:"phone,omitempty"`
-		Meta     map[string]interface{} `json:"meta,omitempty"`
+		Meta     map[string]any `json:"meta,omitempty"`
 	}
 
 	if req.Name != nil {
@@ -239,4 +239,183 @@ func (s *CustomerService) RegisterDevice(ctx context.Context, token string, req 
 	}
 
 	return &response, nil
+}
+
+// LoginWithApple authenticates via Apple Sign-In - POST /customers/login-with-apple
+func (s *CustomerService) LoginWithApple(ctx context.Context, identityToken string, authCode string) (*LoginResponse, error) {
+	if identityToken == "" || authCode == "" {
+		return nil, fmt.Errorf("identity token and auth code are required")
+	}
+
+	body := map[string]any{
+		"identity_token": identityToken,
+		"auth_code":      authCode,
+	}
+
+	var response LoginResponse
+	if err := s.client.PostJSON(ctx, "/customers/login-with-apple", body, &response); err != nil {
+		return nil, fmt.Errorf("failed to login with Apple: %w", err)
+	}
+	return &response, nil
+}
+
+// LoginWithGoogle authenticates via Google Sign-In - POST /customers/login-with-google
+func (s *CustomerService) LoginWithGoogle(ctx context.Context, idToken string, clientID string) (*LoginResponse, error) {
+	if idToken == "" || clientID == "" {
+		return nil, fmt.Errorf("id token and client ID are required")
+	}
+
+	body := map[string]any{
+		"id_token":  idToken,
+		"client_id": clientID,
+	}
+
+	var response LoginResponse
+	if err := s.client.PostJSON(ctx, "/customers/login-with-google", body, &response); err != nil {
+		return nil, fmt.Errorf("failed to login with Google: %w", err)
+	}
+	return &response, nil
+}
+
+// GetStripeEphemeralKey retrieves a Stripe ephemeral key - GET /customers/stripe-ephemeral-key
+func (s *CustomerService) GetStripeEphemeralKey(ctx context.Context) (string, error) {
+	var response struct {
+		EphemeralKey string `json:"ephemeral_key"`
+	}
+
+	if err := s.client.GetJSON(ctx, "/customers/stripe-ephemeral-key", &response); err != nil {
+		return "", fmt.Errorf("failed to get Stripe ephemeral key: %w", err)
+	}
+	return response.EphemeralKey, nil
+}
+
+// CreateStripeSetupIntent creates a Stripe setup intent - POST /customers/stripe-setup-intent
+func (s *CustomerService) CreateStripeSetupIntent(ctx context.Context) (*StripeSetupIntent, error) {
+	var intent StripeSetupIntent
+	if err := s.client.PostJSON(ctx, "/customers/stripe-setup-intent", nil, &intent); err != nil {
+		return nil, fmt.Errorf("failed to create Stripe setup intent: %w", err)
+	}
+	return &intent, nil
+}
+
+// Update updates a customer profile - PUT /customers/{id}
+func (s *CustomerService) Update(ctx context.Context, id string, opts ...UpdateOption) (*Customer, error) {
+	if id == "" {
+		return nil, fmt.Errorf("customer ID is required")
+	}
+
+	options := &UpdateCustomerOptions{}
+	for _, o := range opts {
+		o(options)
+	}
+
+	body := map[string]any{}
+	if options.Name != nil {
+		body["name"] = *options.Name
+	}
+	if options.Email != nil {
+		body["email"] = *options.Email
+	}
+	if options.Phone != nil {
+		body["phone"] = *options.Phone
+	}
+
+	var customer Customer
+	endpoint := "/customers/" + id
+	if err := s.client.PutJSON(ctx, endpoint, body, &customer); err != nil {
+		return nil, fmt.Errorf("failed to update customer: %w", err)
+	}
+	return &customer, nil
+}
+
+// InitiateAccountClosure initiates the account closure process - POST /customers/account-closure
+func (s *CustomerService) InitiateAccountClosure(ctx context.Context) error {
+	var response struct {
+		Message string `json:"message"`
+	}
+
+	if err := s.client.PostJSON(ctx, "/customers/account-closure", nil, &response); err != nil {
+		return fmt.Errorf("failed to initiate account closure: %w", err)
+	}
+	return nil
+}
+
+// ConfirmAccountClosure confirms and completes the account closure - POST /customers/confirm-account-closure
+func (s *CustomerService) ConfirmAccountClosure(ctx context.Context, code string) error {
+	if code == "" {
+		return fmt.Errorf("closure confirmation code is required")
+	}
+
+	body := map[string]any{"code": code}
+
+	var response struct {
+		Message string `json:"message"`
+	}
+
+	if err := s.client.PostJSON(ctx, "/customers/confirm-account-closure", body, &response); err != nil {
+		return fmt.Errorf("failed to confirm account closure: %w", err)
+	}
+	return nil
+}
+
+// LoginWithFacebook authenticates via Facebook Sign-In - POST /customers/login-with-facebook
+func (s *CustomerService) LoginWithFacebook(ctx context.Context, facebookUserID string, email *string, name *string) (*Customer, error) {
+	if facebookUserID == "" {
+		return nil, fmt.Errorf("facebook user ID is required")
+	}
+
+	body := map[string]any{
+		"facebook_user_id": facebookUserID,
+	}
+	if email != nil {
+		body["email"] = *email
+	}
+	if name != nil {
+		body["name"] = *name
+	}
+
+	var customer Customer
+	if err := s.client.PostJSON(ctx, "/customers/login-with-facebook", body, &customer); err != nil {
+		return nil, fmt.Errorf("failed to login with Facebook: %w", err)
+	}
+	return &customer, nil
+}
+
+// RequestPhoneVerification initiates phone number verification - POST /customers/request-phone-verification
+func (s *CustomerService) RequestPhoneVerification(ctx context.Context, phone string) error {
+	if phone == "" {
+		return fmt.Errorf("phone number is required")
+	}
+
+	body := map[string]any{"phone": phone}
+
+	var response struct {
+		Message string `json:"message"`
+	}
+
+	if err := s.client.PostJSON(ctx, "/customers/request-phone-verification", body, &response); err != nil {
+		return fmt.Errorf("failed to request phone verification: %w", err)
+	}
+	return nil
+}
+
+// VerifyPhoneNumber verifies a phone number with the provided code - POST /customers/verify-phone-number
+func (s *CustomerService) VerifyPhoneNumber(ctx context.Context, code string, phone string) error {
+	if code == "" || phone == "" {
+		return fmt.Errorf("code and phone are required")
+	}
+
+	body := map[string]any{
+		"code":  code,
+		"phone": phone,
+	}
+
+	var response struct {
+		Message string `json:"message"`
+	}
+
+	if err := s.client.PostJSON(ctx, "/customers/verify-phone-number", body, &response); err != nil {
+		return fmt.Errorf("failed to verify phone number: %w", err)
+	}
+	return nil
 }

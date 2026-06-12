@@ -13,7 +13,7 @@ metadata:
 I provide comprehensive guidance for working with the Fleetbase Storefront Go SDK. I help agents with:
 
 - **SDK Initialization** - Proper client setup and configuration options
-- **Service Access Patterns** - How to access Products, Cart, Checkout, Customers, Orders, Categories, Reviews, and Store services
+- **Service Access Patterns** - How to construct and use Products, Cart, Checkout, Customers, Orders, Categories, Reviews, Store, FoodTruck, and Location services
 - **API Usage** - Correct method signatures and parameter patterns for all service operations
 - **Error Handling** - Best practices for typed errors, error wrapping, and checking specific error types
 - **Context Management** - Proper use of context.Context for cancellation and timeouts
@@ -54,18 +54,33 @@ if err != nil {
 
 ### Service Access Pattern
 
-Access services through the main client instance:
+Services are constructed manually using `NewXxxService(client)` constructors — NOT via accessor methods on the client. Each service is a standalone struct that holds a reference to the `StorefrontClient`.
 
 ```go
-// All services are accessed via methods on the client
-sf.Products()    // Product catalog operations
-sf.Cart()        // Shopping cart operations  
-sf.Checkout()    // Checkout session operations
-sf.Customers()   // Customer account operations
-sf.Orders()      // Order management operations
-sf.Categories()  // Category browsing operations
-sf.Reviews()     // Product review operations
-sf.Store()       // Store configuration operations
+import (
+    "github.com/artyconst/fb-storefront-go/pkg/resources/cart"
+    "github.com/artyconst/fb-storefront-go/pkg/resources/category"
+    "github.com/artyconst/fb-storefront-go/pkg/resources/checkout"
+    "github.com/artyconst/fb-storefront-go/pkg/resources/customer"
+    "github.com/artyconst/fb-storefront-go/pkg/resources/foodtruck"
+    "github.com/artyconst/fb-storefront-go/pkg/resources/location"
+    "github.com/artyconst/fb-storefront-go/pkg/resources/order"
+    "github.com/artyconst/fb-storefront-go/pkg/resources/product"
+    "github.com/artyconst/fb-storefront-go/pkg/resources/review"
+    "github.com/artyconst/fb-storefront-go/pkg/resources/store"
+)
+
+// Construct each service independently
+productSDK := product.NewProductService(sfClient)
+cartSDK := cart.NewCartService(sfClient)
+checkoutSDK := checkout.NewCheckoutService(sfClient)
+customerSDK := customer.NewCustomerService(sfClient)
+orderSDK := order.NewOrderService(sfClient)
+categorySDK := category.NewCategoryService(sfClient)
+reviewSDK := review.NewReviewService(sfClient)
+storeSDK := store.NewStoreService(sfClient)
+foodtruckSDK := foodtruck.NewService(sfClient)
+locationSDK := location.NewService(sfClient)
 ```
 
 ### Context Usage
@@ -78,7 +93,7 @@ import "time"
 ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 defer cancel()
 
-products, err := sfClient.Products().List(ctx, product.ListOptions{})
+products, err := productSDK.List(ctx, product.WithLimit(20))
 if ctx.Err() == context.DeadlineExceeded {
     return fmt.Errorf("request timed out")
 }
@@ -91,196 +106,392 @@ if ctx.Err() == context.DeadlineExceeded {
 - **Service Types**: Each domain has its own service type with dedicated methods
 - **Method Naming**: Methods follow Go conventions, not OpenAPI operation IDs
 
+## Functional Options Pattern
+
+The SDK uses the functional options pattern extensively for optional parameters. Instead of passing large structs or many positional arguments, services accept variadic `...Option` parameters that modify an internal options struct before making the API call.
+
+### How It Works
+
+Each service defines option types and corresponding functions:
+
+```go
+// Product ListOptions with functional options
+products, err := productSDK.List(ctx,
+    product.WithLimit(20),
+    product.WithOffset(100),
+    product.WithCategory("cat_abc"),
+    product.WithSortBy("created_at"),
+    product.WithOrder("desc"),
+)
+
+// Cart AddProduct with functional options
+cart, err := cartSDK.AddProduct(ctx, "cart_123", "prod_456",
+    cart.WithQuantity(2),
+    cart.WithVariant("size", "L"),
+    cart.WithScheduledAt("2026-07-01T10:00:00Z"),
+    cart.WithStoreLocation("loc_main"),
+)
+
+// Cart UpdateLineItem with functional options
+cart, err = cartSDK.UpdateLineItem(ctx, "cart_123", "item_xyz",
+    cart.WithQuantityForUpdate(5),
+    cart.WithVariantForUpdate("color", "red"),
+)
+
+// Checkout Initialize with functional options
+preview, err := checkoutSDK.Initialize(ctx,
+    checkout.WithGateway("stripe"),
+    checkout.WithCustomer("cust_123"),
+    checkout.WithCart("cart_456"),
+    checkout.WithCash(true),
+    checkout.WithTip(500),
+)
+
+// Checkout CaptureCheckout with functional options
+checkoutResult, err := checkoutSDK.CaptureCheckout(ctx, "token_abc",
+    checkout.WithTransactionDetails(details),
+    checkout.WithNotes("Rush order"),
+)
+
+// Order GenerateReceipt with functional options
+receipt, err := orderSDK.GenerateReceipt(ctx, "order_123",
+    order.WithEbarimtReceiverType("individual"),
+    order.WithEbarimtReceiver(receiverInfo),
+)
+```
+
+### Benefits of This Pattern
+
+- **Optional parameters are truly optional** — only pass what you need
+- **Composable** — chain multiple options together naturally
+- **Type-safe** — the compiler catches mistakes at compile time
+- **Extensible** — new options can be added without breaking existing code
+
 ## Service Methods Reference
 
 ### Products Service
 
 ```go
+productSDK := product.NewProductService(sfClient)
+
 // List products with filtering and pagination
-products, err := sf.Products().List(ctx, 
+products, err := productSDK.List(ctx,
     product.WithLimit(20),
     product.WithOffset(0),
-    product.WithSort("created_at"),
-)
-
-// Search products by query
-products, err := sf.Products().Search(ctx, "running shoes", 
-    product.WithPriceRange(1000, 50000), // prices in cents
+    product.WithCategory("cat_abc"),
+    product.WithSortBy("created_at"),
+    product.WithOrder("desc"),
 )
 
 // Get single product by ID
-product, err := sf.Products().Get(ctx, "prod_abc123")
+product, err := productSDK.Get(ctx, "prod_abc123")
 
-// List reviews for a product
-reviews, err := sf.Products().ListReviews(ctx, "prod_abc123", 
-    review.WithLimit(10),
+// Create a new product (functional options for fields like name, price, etc.)
+newProduct, err := productSDK.Create(ctx,
+    product.WithName("Running Shoes"),
+    product.WithPrice(9999), // 99.99 in cents
+)
+
+// Update an existing product
+updatedProduct, err := productSDK.Update(ctx, "prod_abc123",
+    product.WithName("Updated Running Shoes"),
 )
 ```
 
 ### Cart Service
 
+Carts are retrieved via `Get()` — if no cart exists for the given ID, the server creates one automatically. There is no explicit Create method.
+
 ```go
-// Get current cart (creates if doesn't exist)
-cart, err := sf.Cart().GetOrCreateCart(ctx)
+cartSDK := cart.NewCartService(sfClient)
 
-// Add item to cart
-cart, err = sf.Cart().AddItem(ctx, "product_id_123", 2)
+// Get or create cart (creates implicitly if it doesn't exist)
+cart, err := cartSDK.Get(ctx, "cart_abc123")
+if err != nil {
+    return fmt.Errorf("failed to get cart: %w", err)
+}
 
-// Update cart item quantity
-cart, err = sf.Cart().UpdateItem(ctx, "item_id", 5)
+// Add item to cart (product ID is in URL path, quantity as positional arg)
+cart, err = cartSDK.AddItem(ctx, cart.ID, "prod_456", 2,
+    cart.WithVariant("size", "L"),
+    cart.WithScheduledAt("2026-07-01T10:00:00Z"),
+)
 
-// Remove item from cart
-err = sf.Cart().RemoveItem(ctx, "item_id")
+// Add product to cart (functional options for quantity and variants)
+cart, err = cartSDK.AddProduct(ctx, cart.ID, "prod_456",
+    cart.WithQuantity(3),
+    cart.WithVariant("color", "blue"),
+)
 
-// Clear entire cart
-err = sf.Cart().ClearCart(ctx)
+// Update line item in cart
+cart, err = cartSDK.UpdateLineItem(ctx, cart.ID, "item_xyz789",
+    cart.WithQuantityForUpdate(5),
+)
 
-// Get cart totals
-total := cart.GetTotal() // returns int64 in cents
+// Remove line item from cart (returns updated cart)
+cart, err = cartSDK.RemoveLineItem(ctx, cart.ID, "item_xyz789")
+
+// Empty the entire cart (returns empty cart)
+emptyCart, err := cartSDK.EmptyCart(ctx, cart.ID)
+
+// Delete the entire cart entirely
+err = cartSDK.DeleteCart(ctx)
+
+// Checkout the cart and create an order
+order, err := cartSDK.Checkout(ctx, cart.ID, cart.CheckoutRequest{
+    CustomerEmail:   "user@example.com",
+    ShippingAddress: &cart.Address{...},
+})
+
+// Cart total is available as int64 (cents/smallest currency unit)
+fmt.Printf("Cart total: %d\n", cart.TotalAmount)
 ```
 
 ### Checkout Service
 
 ```go
-// Create checkout session from cart
-session, err := sf.Checkout().CreateSession(ctx, 
-    checkout.WithPaymentMethod("stripe"),
-    checkout.WithMetadata(map[string]string{"order_type": "express"}),
+checkoutSDK := checkout.NewCheckoutService(sfClient)
+
+// Create a new checkout session from a cart
+session, err := checkoutSDK.Create(ctx, "cart_abc123", checkout.CreateCheckoutRequest{
+    CustomerEmail:   "user@example.com",
+    ShippingAddress: &checkout.Address{...},
+    PaymentMethodID: "pm_stripe_xyz",
+})
+
+// Get checkout by ID
+session, err := checkoutSDK.Get(ctx, "chk_abc123")
+
+// Update customer info for a checkout
+session, err = checkoutSDK.UpdateCustomer(ctx, "chk_abc123", checkout.CustomerInfo{...})
+
+// Process payment for the checkout
+session, err = checkoutSDK.ProcessPayment(ctx, "chk_abc123", checkout.PaymentRequest{...})
+
+// Initialize checkout preview (functional options)
+preview, err := checkoutSDK.Initialize(ctx,
+    checkout.WithGateway("stripe"),
+    checkout.WithCustomer("cust_123"),
+    checkout.WithCart("cart_456"),
+    checkout.WithCash(true),
+    checkout.WithTip(500),
 )
 
-// Complete payment for checkout session
-result, err := sf.Checkout().CompleteSession(ctx, "session_id", 
-    checkout.WithPaymentIntentData("pi_abc123"),
+// Get checkout status (functional options for ID or token)
+status, err := checkoutSDK.Status(ctx,
+    checkout.WithCheckoutID("chk_abc123"),
 )
 
-// Retrieve checkout session
-session, err := sf.Checkout().GetSession(ctx, "session_id")
+// Capture checkout as an order (functional options)
+captured, err := checkoutSDK.CaptureCheckout(ctx, "token_xyz",
+    checkout.WithTransactionDetails(details),
+    checkout.WithNotes("Rush delivery"),
+)
+
+// Capture QPay checkout
+order, err := checkoutSDK.CaptureQPay(ctx, "chk_abc123", true, nil)
+
+// Get delivery service quote
+quote, err := checkoutSDK.GetDeliveryServiceQuote(ctx, checkout.ServiceQuoteParams{
+    Origin:      "loc_origin",
+    Destination: "loc_dest",
+    CartID:      "cart_456",
+})
+
+// Update payment intent for a checkout
+preview, err = checkoutSDK.UpdatePaymentIntent(ctx, "pi_abc123")
 ```
 
 ### Customers Service
 
 ```go
-// Register new customer
-customer, err := sf.Customers().Register(ctx, 
-    customer.RegisterRequest{
-        Email: "user@example.com",
-        Password: "secure_password_123",
-        FirstName: "John",
-        LastName: "Doe",
-    },
+customerSDK := customer.NewCustomerService(sfClient)
+
+// Create a new customer
+cust, err := customerSDK.Create(ctx, customer.CustomerCreateRequest{
+    Identity: "user@example.com",
+})
+
+// Get customer by ID
+cust, err := customerSDK.Get(ctx, "cust_abc123")
+
+// Login with identity and password
+loginResp, err := customerSDK.Login(ctx, customer.LoginRequest{
+    Identity: "user@example.com",
+    Password: "secure_password_123",
+})
+
+// Login via SMS authentication
+smsLogin, err := customerSDK.LoginWithSMS(ctx, customer.SMSSignInRequest{
+    Identity: "+1234567890",
+})
+
+// Verify SMS code to complete login
+loginResp, err = customerSDK.VerifySMSCode(ctx, customer.SMSConfirmSignInRequest{
+    Identity: "+1234567890",
+    Code:     "123456",
+})
+
+// Login via social providers
+appleLogin, err := customerSDK.LoginWithApple(ctx, identityToken, authCode)
+googleLogin, err := customerSDK.LoginWithGoogle(ctx, idToken, clientID)
+fbCustomer, err := customerSDK.LoginWithFacebook(ctx, facebookUserID, nil, nil)
+
+// Update customer profile (functional options)
+cust, err = customerSDK.Update(ctx, "cust_abc123",
+    customer.WithName("John Doe"),
+    customer.WithEmail("john@example.com"),
+    customer.WithPhone("+1234567890"),
 )
 
-// Login existing customer
-customer, err := sf.Customers().Login(ctx, 
-    customer.LoginRequest{
-        Email: "user@example.com",
-        Password: "secure_password_123",
-    },
+// List places for authenticated customer (requires token)
+places, err := customerSDK.ListPlaces(ctx, "customer_token_here",
+    customer.PlaceWithLimit(20),
 )
 
-// Get current authenticated customer
-me, err := sf.Customers().GetMe(ctx)
-
-// Update customer profile
-customer, err = sf.Customers().UpdateProfile(ctx, 
-    customer.UpdateRequest{
-        FirstName: pt.Str("Jonathan"),
-        Phone:     pt.Str("+1234567890"),
-    },
+// List orders for authenticated customer (requires token)
+orders, err := customerSDK.ListOrders(ctx, "customer_token_here",
+    customer.OrderWithStatus("delivered"),
 )
 
-// Add address to customer
-address, err := sf.Customers().AddAddress(ctx, 
-    customer.AddressRequest{
-        Type:      "shipping",
-        Address1:  "123 Main St",
-        City:      "San Francisco",
-        State:     "CA",
-        ZipCode:   "94105",
-        Country:   "US",
-    },
-)
+// Request account creation code
+err = customerSDK.RequestCreationCode(ctx, customer.RequestCreationCodeRequest{
+    Identity: "user@example.com",
+})
 
-// Get customer orders
-orders, err := sf.Customers().GetOrders(ctx)
+// Register device for push notifications
+resp, err := customerSDK.RegisterDevice(ctx, "customer_token_here", customer.RegisterDeviceRequest{...})
+
+// Phone verification flow
+err = customerSDK.RequestPhoneVerification(ctx, "+1234567890")
+err = customerSDK.VerifyPhoneNumber(ctx, "123456", "+1234567890")
+
+// Account closure flow
+err = customerSDK.InitiateAccountClosure(ctx)
+err = customerSDK.ConfirmAccountClosure(ctx, "closure_code_123")
+
+// Stripe integration
+ephemeralKey, err := customerSDK.GetStripeEphemeralKey(ctx)
+setupIntent, err := customerSDK.CreateStripeSetupIntent(ctx)
 ```
 
 ### Orders Service
 
 ```go
-// List all orders for current customer
-orders, err := sf.Orders().List(ctx, 
+orderSDK := order.NewOrderService(sfClient)
+
+// List orders with optional filtering
+orders, err := orderSDK.List(ctx,
     order.WithLimit(20),
-    order.WithStatus("delivered"),
+    order.WithStatus(order.StatusDelivered),
 )
 
-// Get single order by ID
-order, err := sf.Orders().Get(ctx, "order_abc123")
+// Get single order by ID or order number
+ord, err := orderSDK.Get(ctx, "order_abc123")
 
-// Cancel an order (if allowed)
-err = sf.Orders().Cancel(ctx, "order_abc123")
+// Create a new order from a cart
+ord, err = orderSDK.Create(ctx, "cart_abc123")
 
-// List orders for specific customer
-orders, err := sf.Orders().ListForCustomer(ctx, "customer_id", 
-    order.WithStatus("processing"),
+// Mark an order as picked up
+err = orderSDK.MarkPickedUp(ctx, "order_abc123")
+
+// Generate a receipt for an order (functional options)
+receipt, err := orderSDK.GenerateReceipt(ctx, "order_abc123",
+    order.WithEbarimtReceiverType("individual"),
 )
-
-// Get order items
-items := order.GetItems() // returns []*OrderItem
 ```
 
 ### Categories Service
 
 ```go
-// List top-level categories
-categories, err := sf.Categories().List(ctx)
+categorySDK := category.NewCategoryService(sfClient)
 
-// Get category by ID with children
-category, err := sf.Categories().Get(ctx, "cat_abc123")
-
-// Search categories by name
-categories, err := sf.Categories().Search(ctx, "electronics")
-
-// Get products in a category
-products, err := sf.Categories().ListProducts(ctx, "cat_abc123", 
-    product.WithLimit(50),
+// List categories with optional filtering and pagination
+categories, err := categorySDK.List(ctx,
+    category.WithLimit(50),
+    category.WithSearch("electronics"),
 )
+
+// Get category by ID
+category, err := categorySDK.Get(ctx, "cat_abc123")
 ```
 
 ### Reviews Service
 
 ```go
-// List reviews for a product
-reviews, err := sf.Reviews().List(ctx, review.ListOptions{
-    ProductID: "prod_abc123",
-    Limit:     10,
-})
+reviewSDK := review.NewReviewService(sfClient)
 
-// Submit a new review
-review, err := sf.Reviews().Submit(ctx, 
-    review.SubmitRequest{
-        ProductID: "prod_abc123",
-        Rating:    5,
-        Title:     "Excellent product!",
-        Body:      "Very satisfied with this purchase.",
-    },
+// List all reviews with pagination
+reviews, err := reviewSDK.List(ctx,
+    review.WithLimit(10),
+    review.WithOffset(0),
 )
 
-// Count reviews by rating
-counts, err := sf.Reviews().CountByRating(ctx, "prod_abc123")
+// Create a new review (functional options for additional fields)
+newReview, err := reviewSDK.Create(ctx, "Great product!", 5,
+    review.WithProductID("prod_abc123"),
+)
+
+// Get single review by ID
+review, err := reviewSDK.Get(ctx, "rev_xyz789")
+
+// Delete a review
+err = reviewSDK.Delete(ctx, "rev_xyz789")
+
+// Count reviews for a store
+count, err := reviewSDK.CountByStore(ctx, "store_abc123")
+
+// Count reviews by rating (1-5)
+count, err = reviewSDK.CountByRating(ctx, 5)
 ```
 
 ### Store Service
 
 ```go
-// Get store configuration and information
-storeInfo, err := sf.Store().Get(ctx)
+storeSDK := store.NewStoreService(sfClient)
 
-// List stores (for multi-store setups)
-stores, err := sf.Store().List(ctx)
+// Get about store information
+aboutInfo, err := storeSDK.About(ctx)
 
-// Get store by ID
-store, err := sf.Store().GetByID(ctx, "store_abc123")
+// List payment gateways with pagination
+gateways, err := storeSDK.ListGateways(ctx,
+    store.WithLimit(20),
+)
+
+// Get specific gateway by ID
+gateway, err := storeSDK.GetGateway(ctx, "gw_stripe")
+```
+
+### FoodTruck Service
+
+```go
+foodtruckSDK := foodtruck.NewService(sfClient)
+
+// List all food trucks with optional filtering
+trucks, err := foodtruckSDK.List(ctx,
+    foodtruck.WithLimit(20),
+    foodtruck.WithSort("name"),
+)
+
+// Get single food truck by ID
+truck, err := foodtruckSDK.Get(ctx, "ft_abc123")
+```
+
+### Location Service
+
+```go
+locationSDK := location.NewService(sfClient)
+
+// List locations for a specific store
+locations, err := locationSDK.List(ctx, "store_abc123",
+    location.WithLimit(50),
+)
+
+// Get single location by ID (requires store ID as query param)
+loc, err := locationSDK.Get(ctx, "store_abc123", "loc_xyz789")
+
+// List all store locations via dedicated endpoint
+storeLocations, err := locationSDK.ListLocations(ctx)
 ```
 
 ## Configuration Options
@@ -320,7 +531,7 @@ import (
 )
 
 // Check for API key errors
-sf, err := sf.NewStorefront("invalid_key")
+sfClient, err := sf.NewStorefront("invalid_key")
 if err != nil {
     if errors.Is(err, sf.ErrInvalidAPIKey) {
         log.Fatal("Please check your API key configuration")
@@ -328,13 +539,13 @@ if err != nil {
 }
 
 // Check for resource not found
-products, err := sf.Products().List(ctx, opts)
+products, err := productSDK.List(ctx, opts)
 if errors.Is(err, sf.ErrResourceNotFound) {
     log.Println("No products found matching criteria")
 }
 
 // Handle cart-specific errors
-err = sf.Cart().AddItem(ctx, "product_123", 0)
+err = cartSDK.AddItem(ctx, "cart_123", "prod_456", 0)
 if errors.Is(err, sf.ErrCartEmpty) {
     // Cart is empty
 }
@@ -360,8 +571,8 @@ if errors.As(err, &apiErr) {
 Always wrap errors with context using `%w`:
 
 ```go
-func getListProducts(ctx context.Context) ([]*sf.Product, error) {
-    products, err := sfClient.Products().List(ctx, opts)
+func getListProducts(ctx context.Context) ([]*product.Product, error) {
+    products, err := productSDK.List(ctx, opts)
     if err != nil {
         return nil, fmt.Errorf("failed to list products: %w", err)
     }
@@ -405,12 +616,13 @@ func TestProductList(t *testing.T) {
     handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(http.StatusOK)
-        fmt.Fprintln(w, `{"data": [{"id": "1", "name": "Test"}]}`)
+        fmt.Fprintln(w, `[{"id": "1", "name": "Test"}]`)
     })
 
     client := setupTestClient(t, handler)
     
-    products, err := client.Products().List(context.Background(), product.WithLimit(10))
+    productSDK := product.NewProductService(client)
+    products, err := productSDK.List(context.Background(), product.WithLimit(10))
     if err != nil {
         t.Fatalf("Unexpected error: %v", err)
     }
@@ -444,10 +656,10 @@ Always pass context as the first parameter:
 
 ```go
 // ❌ Wrong - no context
-products, err := sf.Products().List(product.WithLimit(20))
+products, err := productSDK.List(product.WithLimit(20))
 
 // ✅ Correct
-products, err := sf.Products().List(context.Background(), product.WithLimit(20))
+products, err := productSDK.List(context.Background(), product.WithLimit(20))
 ```
 
 ### 2. Using String for Prices
@@ -471,7 +683,7 @@ type Product struct {
 Optional fields are pointers and may be nil:
 
 ```go
-product, err := sf.Products().Get(ctx, "id")
+product, err := productSDK.Get(ctx, "id")
 if product.Description != nil {
     fmt.Println(*product.Description)
 } else {
@@ -484,7 +696,7 @@ if product.Description != nil {
 Always check for context cancellation:
 
 ```go
-products, err := sf.Products().List(ctx, opts)
+products, err := productSDK.List(ctx, opts)
 if ctx.Err() != nil {
     return fmt.Errorf("operation cancelled: %w", ctx.Err())
 }
@@ -496,15 +708,24 @@ When sending requests, use pointers for optional fields:
 
 ```go
 // ❌ Wrong - always sends field even if empty
-sf.Customers().UpdateProfile(ctx, customer.UpdateRequest{
-    FirstName: "John",
-})
+customerSDK.Update(ctx, "cust_123")
 
-// ✅ Correct - only updates if pointer is non-nil
-firstName := "John"
-sf.Customers().UpdateProfile(ctx, customer.UpdateRequest{
-    FirstName: &firstName,
-})
+// ✅ Correct - only updates if pointer is non-nil via functional options
+customerSDK.Update(ctx, "cust_123", customer.WithName("John"))
+```
+
+### 6. Using Client Accessor Methods That Don't Exist
+
+Services are NOT accessed via methods on the client:
+
+```go
+// ❌ Wrong - these accessor methods do not exist
+products, err := sfClient.Products().List(ctx)
+cart, err := sfClient.Cart().Get(ctx, "id")
+
+// ✅ Correct - construct services manually
+productSDK := product.NewProductService(sfClient)
+products, err := productSDK.List(ctx)
 ```
 
 ## Quick Reference: Helper Functions
@@ -530,6 +751,7 @@ Before implementing SDK features, verify:
 
 - [ ] Client initialized with WithUserAgent option (required by server, returns 403 without it)
 - [ ] Client initialized with proper error handling
+- [ ] Services constructed via `NewXxxService(client)` — NOT via client accessor methods
 - [ ] All service methods called with context.Context as first parameter
 - [ ] Errors checked and wrapped appropriately using `%w`
 - [ ] Specific errors validated using `errors.Is()` and `errors.As()`

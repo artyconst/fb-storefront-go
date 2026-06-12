@@ -103,8 +103,8 @@ func runAuthenticationFlow(customerService *customerSDK.CustomerService, email, 
 
 			fmt.Printf("   ✓ Customer created successfully!\n")
 			fmt.Printf("     ID: %s\n", newCustomer.ID)
-			fmt.Printf("     Name: %s\n", derefString(newCustomer.Name))
-			fmt.Printf("     Email: %s\n", derefString(newCustomer.Email))
+			fmt.Printf("     Name: %s\n", newCustomer.Name)
+			fmt.Printf("     Email: %s\n", newCustomer.Email)
 
 			fmt.Println("\nStep 3: Attempting login with newly created account...")
 			time.Sleep(1 * time.Second)
@@ -128,22 +128,12 @@ func runAuthenticationFlow(customerService *customerSDK.CustomerService, email, 
 		fmt.Printf("   Account successfully authenticated!\n")
 	} else {
 		fmt.Printf("   Customer ID: %s\n", loginResp.Customer.ID)
-		fmt.Printf("   Name: %s\n", derefString(loginResp.Customer.Name))
-		fmt.Printf("   Email: %s\n", derefString(loginResp.Customer.Email))
+		fmt.Printf("   Name: %s\n", loginResp.Customer.Name)
+		fmt.Printf("   Email: %s\n", loginResp.Customer.Email)
 	}
 	fmt.Printf("   Token (first 20 chars): %s...\n", loginResp.Token[:min(len(loginResp.Token), 20)])
-	if loginResp.ExpiresAt != "" {
-		fmt.Printf("   Expires at: %s\n", loginResp.ExpiresAt)
-	}
 
 	return nil
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // Helper functions for pointer manipulation
